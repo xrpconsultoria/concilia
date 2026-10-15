@@ -21,6 +21,8 @@ def read_pdf(content, password=""):
         raise
     except Exception as exc:
         raise InputError("Não foi possível ler o PDF. Verifique o arquivo e a senha.") from exc
+    if "Plano de Contas" in text and "Tipo de Saldo" in text:
+        raise InputError("Este PDF é um plano de contas. Salve-o em Clientes e configurações. Aqui, escolha o extrato bancário com os movimentos.")
     if "SICOOB" in text and "HISTÓRICO DE MOVIMENTAÇÃO" in text:
         result = read_sicoob(text)
     elif "C6" in text and "Data" in text and "contábil" in text:
@@ -181,13 +183,16 @@ def read_table(content, suffix, mapping):
     if len(rows) > 20001:
         raise InputError("Importe no máximo 20.000 movimentos por arquivo.")
     headers = [normalize(x) for x in rows[0]]
+    if {"DATA", "CONTA", "VALOR", "DEBITO", "CREDITO", "HISTORICO"}.issubset(headers):
+        raise InputError("Esta é uma planilha Makro já conciliada. Use-a em Gerenciar regras para ensinar as classificações. Para criar a conciliação, envie o extrato do banco.")
     aliases = {"date": ["DATA", "DATE", "DATA LANÇAMENTO"], "description": ["DESCRICAO", "DESCRIÇÃO", "HISTORICO", "HISTÓRICO", "CONTA"], "value": ["VALOR", "VALUE", "AMOUNT"]}
     indices = {}
     for field, names in aliases.items():
         label = normalize(mapping.get(field, ""))
         matches = [i for i, h in enumerate(headers) if h == label] if label else [i for i, h in enumerate(headers) if h in names]
         if len(matches) != 1:
-            raise InputError(f"Informe o nome exato da coluna de {field}: {', '.join(str(x) for x in rows[0])}")
+            label = {"date": "data", "description": "descrição", "value": "valor"}[field]
+            raise InputError(f"Informe o nome exato da coluna de {label} em Mapear colunas: {', '.join(str(x) for x in rows[0])}")
         indices[field] = matches[0]
     movements = []
     for n, row in enumerate(rows[1:], 2):

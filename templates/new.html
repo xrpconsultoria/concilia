@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+<a class="back" href="{{ url_for('home') }}">← Suas conciliações</a>
+{% include '_steps.html' %}
+{% if not account %}
+<header class="page-heading"><div><div class="eyebrow">ETAPA 1 DE 3</div><h1>De qual conta é o extrato?</h1><p>Selecione o cliente e a conta bancária para começar.</p></div></header>
+<section class="card focused-card">
+<form method="get" action="{{ url_for('new_reconciliation') }}" id="choose-account-form">
+  <label>Cliente<select name="client_id" id="client-picker" required><option value="" disabled selected>Selecione o cliente</option>{% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+  <label>Conta bancária<select name="account_id" id="account-picker" required><option value="" disabled selected>Selecione a conta bancária</option>{% for a in accounts %}<option value="{{ a.id }}" data-client="{{ a.client_id }}">{{ a.name }} · {{ a.number }} · Makro {{ a.bank_code }}</option>{% endfor %}</select><small id="account-picker-hint">Escolha a conta que aparece no extrato, incluindo o dígito.</small></label>
+  <div class="form-footer"><a class="text-link" href="{{ url_for('setup_account') }}">+ Cadastrar cliente ou conta</a><button>Continuar: enviar extrato →</button></div>
+</form>
+</section>
+{% else %}
+<header class="page-heading"><div><div class="eyebrow">ETAPA 2 DE 3</div><h1>Envie o extrato bancário.</h1><p>Vamos ler os movimentos para você revisar antes de gerar o Excel.</p></div></header>
+<div class="selected-context"><div class="account-avatar" aria-hidden="true">{{ account.client_name[:1] }}</div><div><strong>{{ account.client_name }}</strong><span>{{ account.name }} · Conta {{ account.number }} · Makro {{ account.bank_code }}</span></div><div class="context-actions"><a href="{{ url_for('new_reconciliation') }}">Trocar conta</a><a href="{{ url_for('edit_account', account_id=account.id) }}">Corrigir cadastro</a></div></div>
+<section class="card focused-card">
+<form method="post" action="{{ url_for('import_file') }}" enctype="multipart/form-data" data-async="import" id="import-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="account_id" value="{{ account.id }}">
+  <label class="upload-field"><span class="upload-icon" aria-hidden="true">↥</span><strong>Escolha o extrato do banco</strong><span>PDF, OFX, CSV ou Excel</span><input type="file" name="file" required accept=".pdf,.ofx,.csv,.xlsx"><small data-file-name>Selecione um arquivo para continuar · até 16 MB</small></label>
+  <p class="file-help">PDF: Sicoob SISBR ou C6 com duas datas. Para outros bancos, use OFX ou uma tabela com valores positivos e negativos.</p>
+  <div class="form-grid"><label>De <span class="subtle">opcional</span><input type="date" name="start"></label><label>Até <span class="subtle">opcional</span><input type="date" name="end"></label></div>
+  <p class="field-explainer">Sem datas preenchidas, todos os movimentos do arquivo serão importados.</p>
+  <details><summary>O PDF tem senha?</summary><label>Senha do arquivo<input type="password" name="password" autocomplete="off"><small>Usada apenas para abrir o PDF.</small></label></details>
+  <details><summary>Mapear colunas de CSV ou Excel</summary><p>Preencha somente se a leitura automática não reconhecer os cabeçalhos. Valores positivos representam entradas e negativos representam saídas.</p><div class="form-grid thirds"><label>Coluna de data<input name="column_date" placeholder="Data"></label><label>Coluna de descrição<input name="column_description" placeholder="Descrição"></label><label>Coluna de valor<input name="column_value" placeholder="Valor"></label></div></details>
+  <div class="inline-error" role="alert" tabindex="-1" hidden></div>
+  <div class="form-footer"><span>O próximo passo é revisar os movimentos.</span><button data-loading="Lendo o extrato…">Ler extrato e revisar →</button></div>
+</form>
+</section>
+<section class="card focused-card learning-summary"><div><h2>Classificação desta conta</h2><p>{% if rules_count %}{{ rules_count }} regras cadastradas serão aplicadas. O que ficar sem regra vai para a 106.{% else %}Sem regras cadastradas. Os movimentos usarão as contrapartidas padrão da conta; você poderá revisar cada linha.{% endif %}</p></div><a class="text-link" href="{{ url_for('account_page', account_id=account.id) }}">Gerenciar regras →</a>
+  <details><summary>Tenho uma planilha já conciliada para ensinar as classificações <span class="optional">opcional</span></summary><p>Envie a planilha pronta no modelo Makro. Ela ensina as classificações desta conta; o extrato bancário será enviado no campo acima.</p><form method="post" action="{{ url_for('learn', account_id=account.id) }}" enctype="multipart/form-data" data-async="learn"><input type="hidden" name="csrf" value="{{ csrf }}"><label>Planilha já conciliada<input type="file" name="file" accept=".xlsx" required></label><div class="inline-error" role="alert" tabindex="-1" hidden></div><button class="secondary" data-loading="Salvando classificações…">Salvar classificações e voltar ao extrato</button></form></details>
+</section>
+{% endif %}
+{% endblock %}

@@ -4,18 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Conciliador · Makro{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='2') }}">
+  <script defer src="{{ url_for('static', filename='app.js', v='2') }}"></script>
 </head>
 <body>
   <aside class="sidebar">
     <a class="brand" href="{{ url_for('home') }}"><span class="brand-icon">≈</span> concilia<span class="brand-dot">.</span></a>
     <div class="workspace-label">ESPAÇO CONTÁBIL</div>
-    <a class="nav-link" href="{{ url_for('home') }}"><span>▦</span> Clientes e conciliações</a>
-    <div class="sidebar-foot"><span class="status-dot"></span> Ambiente de desenvolvimento<br><small>Exportação para Makro System</small></div>
+    <nav aria-label="Navegação principal">
+      <a class="nav-link {{ 'active' if request.endpoint in ['home', 'new_reconciliation', 'batch_page'] }}" href="{{ url_for('home') }}"><span aria-hidden="true">▦</span> Conciliações</a>
+      <a class="nav-link {{ 'active' if request.endpoint in ['settings', 'setup_account', 'account_page', 'edit_account'] }}" href="{{ url_for('settings') }}"><span aria-hidden="true">⚙</span> Clientes e configurações</a>
+    </nav>
+    <div class="sidebar-foot"><span class="status-dot"></span> Fluxo guiado · v0.2<br><small>Exportação para Makro System</small></div>
   </aside>
   <main>
-    <div class="topbar"><span>Conciliação bancária</span><span class="pill">Histórico fixo · 52</span></div>
+    <div class="topbar"><span>Conciliação bancária <span class="version">v0.2</span></span><span class="pill">Histórico fixo · 52</span></div>
     <div class="content">
       {% for category, message in get_flashed_messages(with_categories=true) %}<div role="status" class="flash {{ category }}">{{ message }}</div>{% endfor %}
       {% block content %}{% endblock %}

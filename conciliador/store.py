@@ -24,4 +24,8 @@ def connect(path):
             code INTEGER NOT NULL, reason TEXT NOT NULL, duplicate INTEGER NOT NULL DEFAULT 0,
             include_row INTEGER NOT NULL DEFAULT 1, reviewed INTEGER NOT NULL DEFAULT 0);
     ''')
+    columns = {row[1] for row in db.execute("PRAGMA table_info(batches)")}
+    if "exported_at" not in columns:
+        db.execute("ALTER TABLE batches ADD COLUMN exported_at TEXT")
+        db.commit()
     return db

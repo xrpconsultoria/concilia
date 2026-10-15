@@ -1,0 +1,7 @@
+<ol class="steps" aria-label="Etapas da conciliação">
+  {% for number, title in [(1, 'Cliente e conta'), (2, 'Extrato bancário'), (3, 'Revisão e Excel')] %}
+  <li class="{{ 'current' if active_step == number else 'done' if active_step > number else '' }}" {% if active_step == number %}aria-current="step"{% endif %}>
+    <span class="step-circle">{{ '✓' if active_step > number else number }}</span><span>{{ title }}</span>
+  </li>
+  {% endfor %}
+</ol>

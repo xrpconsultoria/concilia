@@ -1,0 +1,6 @@
+<form method="post" action="{{ url_for('upload_chart') }}" enctype="multipart/form-data" data-async="chart">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="destination" value="{{ chart_destination|default('settings') }}">
+  <label>Plano de contas do Makro<input type="file" name="file" accept=".pdf,.csv" required><small>PDF do relatório Plano de Contas ou CSV. Este arquivo configura os códigos usados na classificação.</small></label>
+  <div class="inline-error" role="alert" tabindex="-1" hidden></div>
+  <button class="secondary" data-loading="Lendo plano de contas…">Salvar plano de contas</button>
+</form>

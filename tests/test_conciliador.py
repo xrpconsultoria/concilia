@@ -3,6 +3,7 @@ from io import BytesIO
 from pathlib import Path
 import tempfile
 import unittest
+import sqlite3
 from unittest.mock import patch
 
 from openpyxl import Workbook, load_workbook
@@ -119,6 +120,20 @@ Agosto 2026 ( 01/08/2026 - 31/08/2026 ) Entradas: R$ 0,00 • Saídas: R$ 0,05
             read_table(content, ".xlsx", {})
 
 
+    def test_reconciled_workbook_cannot_be_mistaken_for_statement(self):
+        content = workbook([["04/08/2026", "Exemplo fictício", 10, 12, 151, 52]])
+        with self.assertRaisesRegex(InputError, "Gerenciar regras"):
+            read_table(content, ".xlsx", {})
+
+    def test_chart_pdf_is_directed_to_settings(self):
+        with patch("conciliador.readers.PdfReader") as reader:
+            reader.return_value.is_encrypted = False
+            reader.return_value.pages = [unittest.mock.Mock()]
+            reader.return_value.pages[0].extract_text.return_value = "Plano de Contas\nConta S/A Código Histórico D/C Tipo de Saldo"
+            with self.assertRaisesRegex(InputError, "Clientes e configurações"):
+                read_pdf(b"pdf-ficticio")
+
+
 class MakroTests(unittest.TestCase):
     def test_private_chart_validation(self):
         content = (ROOT / "assets" / "plano_de_contas.csv").read_bytes()
@@ -188,7 +203,7 @@ class WebTests(unittest.TestCase):
         content = (ROOT / "assets" / "plano_de_contas.csv").read_bytes()
         with patch("app.PRIVATE_CHART", path):
             response = self.post("/chart", {"file": (BytesIO(content), "plano.csv")})
-        self.assertIn("Plano local carregado".encode(), response.data)
+        self.assertIn("Plano de contas salvo".encode(), response.data)
         self.assertTrue(path.exists())
 
     def test_end_to_end_review_export_period_and_duplicate(self):
@@ -198,7 +213,7 @@ class WebTests(unittest.TestCase):
         content = b"Data;Descricao;Valor\n04/08/2026;Recebimento;100\n05/08/2026;Pagamento;-20\n01/09/2026;Outro;999\n"
         response = self.post("/import", {"account_id": "1", "file": (BytesIO(content), "extrato.csv"), "start": "2026-08-01", "end": "2026-08-31"})
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Confira antes de exportar".encode(), response.data)
+        self.assertIn("Revise e baixe o Excel".encode(), response.data)
         self.assertNotIn(b"999,00", response.data)
         data = {"code_1": "151", "include_1": "on", "code_2": "106", "include_2": "on"}
         export = self.post("/batches/1/export", data)
@@ -234,6 +249,79 @@ class WebTests(unittest.TestCase):
             response = self.post("/import", {"account_id": "1", "file": (BytesIO(b"pdf-ficticio"), "extrato-senha-ficticia.pdf"), "password": "senha-ficticia"})
         self.assertIn(b"extrato-[protegido].pdf", response.data)
         self.assertNotIn(b"senha-ficticia", response.data)
+
+    def test_first_use_goes_from_setup_to_statement_not_rules(self):
+        response = self.client.get("/new", follow_redirects=True)
+        self.assertTrue(response.request.path.endswith("/setup"))
+        response = self.post("/setup", {"client_name": "Cliente fictício A", "account_name": "Banco fictício", "number": "123-4", "bank_code": "12"})
+        self.assertEqual(response.request.path, "/new")
+        self.assertIn("Envie o extrato bancário".encode(), response.data)
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM clients").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM batches").fetchone()[0], 0)
+
+    def test_customer_and_account_are_selected_before_upload(self):
+        self.create_account()
+        response = self.client.get("/new")
+        self.assertIn(b'id="client-picker"', response.data)
+        self.assertIn(b'id="account-picker"', response.data)
+        self.assertNotIn(b'id="import-form"', response.data)
+        response = self.client.get("/new?account_id=1")
+        self.assertIn(b'id="import-form"', response.data)
+        self.assertIn(b'name="account_id" value="1"', response.data)
+
+    def test_setup_validation_is_atomic(self):
+        response = self.post("/setup", {"client_name": "Cliente fictício", "account_name": "Banco", "number": "1234", "bank_code": "106"})
+        self.assertIn("Selecione a conta bancária correspondente".encode(), response.data)
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM clients").fetchone()[0], 0)
+
+    def test_json_import_error_keeps_context_and_returns_edit_link(self):
+        self.create_account()
+        content = b"<OFX><ACCTID>9999\n<STMTTRN><DTPOSTED>20260804\n<TRNAMT>10\n<MEMO>Exemplo\n</STMTTRN></OFX>"
+        response = self.client.post("/import", data={"csrf": self.csrf, "account_id": "1", "file": (BytesIO(content), "extrato.ofx")}, headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json["account_url"], "/accounts/1/edit")
+        self.assertIn("9999", response.json["error"])
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM batches").fetchone()[0], 0)
+
+    def test_edit_wrong_account_number_without_recreating_client(self):
+        self.create_account()
+        response = self.post("/accounts/1/edit", {"name": "Banco", "number": "567-8", "bank_code": "12"})
+        self.assertEqual(response.request.path, "/new")
+        self.assertIn(b"567-8", response.data)
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0], 1)
+
+    def test_cannot_reassign_an_account_with_existing_movements(self):
+        self.create_account()
+        self.post("/import", {"account_id": "1", "file": (BytesIO(b"Data;Descricao;Valor\n04/08/2026;Exemplo;100\n"), "extrato.csv")})
+        self.post("/accounts/1/edit", {"name": "Banco", "number": "567-8", "bank_code": "12"})
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertEqual(db.execute("SELECT number FROM accounts WHERE id=1").fetchone()[0], "123-4")
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM movements").fetchone()[0], 1)
+
+    def test_export_status_and_subsequent_changes(self):
+        self.create_account()
+        self.post("/import", {"account_id": "1", "file": (BytesIO(b"Data;Descricao;Valor\n04/08/2026;Exemplo;100\n"), "extrato.csv")})
+        response = self.client.post("/batches/1/export", data={"csrf": self.csrf, "code_1": "106", "include_1": "on"}, headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response.content_type)
+        self.assertIn("Excel já gerado".encode(), self.client.get("/").data)
+        self.post("/batches/1/review", {"code_1": "151", "include_1": "on"})
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertIsNone(db.execute("SELECT exported_at FROM batches WHERE id=1").fetchone()[0])
+
+    def test_migration_preserves_existing_batches_and_movements(self):
+        self.create_account()
+        self.post("/import", {"account_id": "1", "file": (BytesIO(b"Data;Descricao;Valor\n04/08/2026;Exemplo;100\n"), "extrato.csv")})
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            db.execute("ALTER TABLE batches DROP COLUMN exported_at")
+        self.assertEqual(self.client.get("/").status_code, 200)
+        with sqlite3.connect(self.app.config["DATABASE"]) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM movements").fetchone()[0], 1)
+            self.assertIn("exported_at", [r[1] for r in db.execute("PRAGMA table_info(batches)")])
 
 
 if __name__ == "__main__":

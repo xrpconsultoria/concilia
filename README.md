@@ -34,16 +34,37 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Primeiro uso
+## Fluxo guiado · v0.2
 
-1. Em **Plano de contas local**, carregue o plano geral do Makro em PDF ou CSV. O projeto contém apenas contas de demonstração, insuficientes para uso contábil real. O plano carregado fica em `data/plano_de_contas.csv`, ignorado pelo Git.
-2. Cadastre o cliente e a conta bancária, incluindo o dígito. Selecione o código correto da conta bancária no seu plano, inclusive quando houver mais de uma conta do mesmo banco.
-3. Em **Configurar regras**, envie uma planilha Makro já conciliada. O aplicativo aprende correspondências exatas de descrição e sentido do movimento, específicas por cliente e conta. Também é possível cadastrar regras por trecho de descrição.
-4. Importe o extrato e selecione o período desejado. A exportação usa a data de lançamento.
-5. Confira os movimentos e ajuste a contrapartida. A conta **106** representa pendências e permanece permitida na exportação. Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos ficam na 106.
-6. Selecione as linhas desejadas e use **Salvar revisão** para atualizar os totais. **Baixar Excel Makro** também salva a revisão antes de gerar o arquivo.
+A rotina da equipe fica em **Nova conciliação**:
 
-Sem regra, as contrapartidas padrão são 106 para entradas e saídas; outra conta pode ser configurada no cadastro bancário. Alterações nas regras afetam próximas importações; lotes anteriores preservam sua classificação até a revisão manual.
+1. **Cliente e conta:** selecione o cliente; serão mostradas somente as contas dele. Confira o número e o código do Makro e clique em **Continuar: enviar extrato**.
+2. **Extrato bancário:** escolha o arquivo do banco. Informe um período ou a senha do PDF se necessário. Clique em **Ler extrato e revisar**. Se houver erro, o arquivo e os campos permanecem na tela para correção.
+3. **Revisão e Excel:** confira os movimentos, ajuste os códigos de contrapartida e a seleção das linhas. Os totais e a quantidade de pendências são atualizados na tela. Use **Baixar Excel para Makro**, disponível no topo e no final da revisão. Após a geração, procure o arquivo na pasta Downloads e faça a importação no Makro.
+
+Em **Suas conciliações**, cada arquivo fica como **Aguardando revisão** ou **Excel já gerado**. Se uma revisão alterar os dados após gerar o Excel, a situação volta a aguardar revisão. Reenviar exatamente o mesmo arquivo e período abre a conciliação existente, sem criar outra.
+
+### Cadastro e configuração
+
+A área **Clientes e configurações** reúne o plano contábil, as contas e as regras; não é necessário passar por ela em cada conciliação.
+
+- No primeiro uso, **Cadastrar cliente e conta** leva ao cadastro inicial. Carregue o plano geral do Makro em PDF ou CSV para usar seus códigos reais; o plano que acompanha o projeto é apenas demonstrativo. O plano próprio fica em `data/plano_de_contas.csv`, ignorado pelo Git.
+- Cadastre o nome do cliente, o banco, o número completo da conta com dígito e a conta bancária correspondente no plano do Makro. Ao salvar, você segue diretamente para enviar o extrato.
+- **Editar conta** permite corrigir o número antes da primeira conciliação. Contas com movimentos mantêm sua identificação para preservar o histórico; se for outra conta, faça um novo cadastro.
+- **Regras** é uma configuração opcional por cliente e conta. Envie uma planilha Makro já conciliada para aprender descrições iguais, ou cadastre regras por trecho. A planilha pronta ensina a classificação; os movimentos exportados vêm do extrato bancário.
+- Sem regra, os padrões são 106 para entradas e saídas. Eles podem ser ajustados em **Editar conta**, caso outra classificação geral seja válida para o cliente.
+
+Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos ficam na **106**. Alterações nas regras afetam próximas importações. Conciliações anteriores preservam a classificação até a revisão manual. Alterar um código manualmente na revisão não cria uma regra automática.
+
+### Atualizar uma instalação existente
+
+1. Encerre o aplicativo com Ctrl+C na janela do servidor.
+2. Baixe e extraia a versão nova em uma pasta diferente.
+3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
+4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
+5. Confira **v0.2** na interface. Se necessário, recarregue a página com Ctrl+F5.
+
+Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
 ## Formatos aceitos
 
@@ -84,7 +105,7 @@ A importação efetiva precisa ser conferida no próprio Makro. O aplicativo pre
 
 ## Testes
 
-Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemplos fictícios e verifica leitores, valores em centavos, datas, senhas, totais, conflitos, isolamento por conta, estrutura da exportação, códigos contábeis, fórmulas, duplicidades, plano local e fluxo HTTP completo. Não depende de documentos de clientes.
+Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemplos fictícios e verifica leitores, valores em centavos, datas, senhas, totais, conflitos, isolamento por conta, estrutura da exportação, códigos contábeis, fórmulas, duplicidades, plano local, cadastro guiado, edição segura de conta, erros de importação e migração do banco. Não depende de documentos de clientes. O fluxo completo também é validado em navegador, incluindo seleção por cliente, revisão, download e uso em tela móvel.
 
 ## Dados locais
 

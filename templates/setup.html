@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<a class="back" href="{{ url_for('new_reconciliation') if clients else url_for('home') }}">← Voltar</a>
+<header class="page-heading"><div><div class="eyebrow">CADASTRO INICIAL</div><h1>Prepare o cliente e a conta.</h1><p>Depois deste cadastro, você já segue para o envio do extrato.</p></div></header>
+{% if not private_chart %}<section class="card focused-card"><div class="section-heading"><div><h2>Primeiro, confira o plano contábil</h2><span class="subtle">O plano atual é demonstrativo. Carregue seu plano para usar os códigos reais.</span></div></div>{% set chart_destination = 'setup' %}{% include '_chart_form.html' %}</section>{% else %}<div class="notice focused-card">✓ Plano de contas carregado. Escolha o cliente e informe a conta bancária abaixo.</div>{% endif %}
+<section class="card focused-card">
+<form method="post" action="{{ url_for('setup_account') }}" data-async="setup">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{% if clients %}<label>Cliente<select name="client_id" id="setup-client"><option value="">+ Cadastrar novo cliente</option>{% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>{% endif %}
+<div id="new-client-fields"><label>Nome ou razão social do cliente<input name="client_name" required maxlength="160" placeholder="Nome da empresa"></label><label>CNPJ <span class="subtle">opcional</span><input name="tax_id" placeholder="00.000.000/0000-00"></label></div>
+<div class="form-divider"><span>Conta bancária</span></div>
+<label>Banco ou nome da conta<input name="account_name" required maxlength="160" placeholder="Ex.: Sicoob · conta principal"></label>
+<label>Número da conta com dígito<input name="number" required placeholder="Copie o número que aparece no extrato"><small>Use o número completo para conferirmos se o extrato pertence a esta conta.</small></label>
+<label>Conta bancária no plano do Makro<select name="bank_code" required><option value="" selected disabled>Selecione o código e a conta bancária</option>{% for code, item in chart.items() %}{% if item.tipo == 'A' and item.inativada == 'nao' and item.conta.startswith('1.1.2.04.') %}<option value="{{ code }}">{{ code }} · {{ item.descricao }}</option>{% endif %}{% endfor %}</select></label>
+<p class="field-explainer">As classificações sem regra irão para a 106. Você pode ajustar as regras e os padrões depois.</p>
+<div class="inline-error" role="alert" tabindex="-1" hidden></div>
+<div class="form-footer"><a href="{{ url_for('settings') }}" class="text-link">Ver cadastros existentes</a><button data-loading="Salvando cadastro…">Salvar e enviar extrato →</button></div>
+</form>
+</section>
+{% endblock %}
