@@ -34,7 +34,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.2
+## Fluxo guiado · v0.3
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -62,7 +62,7 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
 4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.2** na interface. Se necessário, recarregue a página com Ctrl+F5.
+5. Confira **v0.3** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -72,6 +72,8 @@ Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente 
 | --- | --- |
 | PDF Sicoob SISBR | Histórico de movimentação, descrições em várias linhas e valores com C/D; conferência dos saldos diários. |
 | PDF C6 | Modelo com data de lançamento e data contábil, dentro de um mesmo ano; conferência dos totais mensais informados. |
+| PDF Sicredi | Modelo de conta corrente com Documento/Histórico/Débito/Crédito/Saldo; valores lidos pela posição das colunas. Saldos e totais são conferidos; resumos e lançamentos futuros ficam de fora. |
+| PDF Cresol | Modelo com saldos diários, valores com sinal e documento abaixo da descrição. Preserva estornos, confere os saldos e ordena os movimentos por data. |
 | PDF protegido | Senha usada em memória para abrir o arquivo. Não é salva nos campos do lote; se aparecer no nome do arquivo, esse trecho é ocultado no nome salvo. |
 | OFX | STMTTRN XML/SGML, DTPOSTED, TRNAMT, MEMO/NAME e FITID. |
 | CSV / XLSX | Cabeçalho na primeira linha: data, descrição e valor com sinal; mapeamento de nomes de colunas disponível. CSV UTF-8 ou Windows-1252, delimitado por vírgula, ponto e vírgula ou tabulação. XLSX usa a primeira aba e rejeita fórmulas. |
@@ -85,6 +87,8 @@ conta;tipo;codigo;descricao;natureza;tipo_saldo;inativada
 ```
 
 Tipo deve ser S ou A e inativada deve ser sim ou nao. A conta analítica ativa 106 precisa existir. A troca de plano só é aceita se todos os códigos já usados nos cadastros, regras e lotes continuarem ativos.
+
+Descrições do PDF são preservadas, incluindo nomes truncados e caracteres incomuns; o aplicativo não completa nomes. Uma planilha conciliada que tenha corrigido a grafia pode não gerar uma regra exata para o texto original do extrato. Nesses casos, revise a conta 106 ou cadastre uma regra por trecho. O Sicredi pode reunir mais de um mês no mesmo arquivo: use o filtro de datas quando quiser exportar apenas um mês.
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
 
@@ -105,7 +109,7 @@ A importação efetiva precisa ser conferida no próprio Makro. O aplicativo pre
 
 ## Testes
 
-Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemplos fictícios e verifica leitores, valores em centavos, datas, senhas, totais, conflitos, isolamento por conta, estrutura da exportação, códigos contábeis, fórmulas, duplicidades, plano local, cadastro guiado, edição segura de conta, erros de importação e migração do banco. Não depende de documentos de clientes. O fluxo completo também é validado em navegador, incluindo seleção por cliente, revisão, download e uso em tela móvel.
+Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemplos fictícios e verifica leitores, valores em centavos, datas, senhas, totais, conflitos, isolamento por conta, estrutura da exportação, códigos contábeis, fórmulas, duplicidades, plano local, cadastro guiado, edição segura de conta, erros de importação e migração do banco. Não depende de documentos de clientes. Os testes adicionais Sicredi e Cresol cobrem posição das colunas, saldo negativo, transporte entre páginas, totais, estornos, descrições em várias linhas, documentos ausentes, repetições legítimas e rejeição de linhas ambíguas. O fluxo completo também é validado em navegador, incluindo seleção por cliente, revisão, download e uso em tela móvel.
 
 ## Dados locais
 

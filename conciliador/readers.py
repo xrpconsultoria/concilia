@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from .domain import InputError, Movement, Statement, money, normalize, parse_date
+from .bank_layouts import read_cresol, read_sicredi
 
 
 def read_pdf(content, password=""):
@@ -27,11 +28,22 @@ def read_pdf(content, password=""):
         result = read_sicoob(text)
     elif "C6" in text and "Data" in text and "contábil" in text:
         result = read_c6(text)
+    elif "SICREDI" in text.upper() and "EXTRATO DE CONTA CORRENTE" in text:
+        result = read_sicredi(_positioned_text(reader))
+    elif all(marker in text for marker in ["Saldo em Conta", "Saldo Disponível", "Lançamentos", "Consulta Posição consolidada", "Saldo Anterior:"]):
+        result = read_cresol(_positioned_text(reader))
     else:
-        raise InputError("Layout PDF ainda não reconhecido. Esta versão lê Sicoob SISBR e C6 com duas datas. PDFs digitalizados precisam de um leitor com OCR.")
+        raise InputError("Layout PDF ainda não reconhecido. Esta versão lê Sicoob SISBR, C6 com duas datas, Sicredi com débito/crédito e Cresol com saldos diários. PDFs digitalizados precisam de um leitor com OCR.")
     if not result.movements:
         raise InputError("Nenhum movimento foi identificado; o arquivo não foi importado.")
     return result
+
+
+def _positioned_text(reader):
+    try:
+        return "\n\f\n".join(page.extract_text(extraction_mode="layout") or "" for page in reader.pages)
+    except Exception as exc:
+        raise InputError("Não foi possível separar as colunas do PDF. Confira se o arquivo tem texto selecionável.") from exc
 
 
 def read_sicoob(text):
