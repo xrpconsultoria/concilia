@@ -1,0 +1,16 @@
+﻿conta;tipo;codigo;descricao;natureza;tipo_saldo;inativada
+1.0.0.00.000;S;10000;ATIVO (DEMONSTRAÇÃO);D;DC;nao
+1.1.2.06.001;A;7;Conta inativa de demonstração;D;DC;sim
+1.1.2.04.001;A;12;Banco de demonstração A;D;DC;nao
+1.1.2.04.002;A;98;Banco de demonstração B;D;DC;nao
+4.1.1.01.003;A;106;Pendências para revisão;D;DC;nao
+4.1.1.01.004;A;150;Contas a pagar de demonstração;D;DC;nao
+4.1.1.01.005;A;151;Contas a receber de demonstração;D;DC;nao
+4.1.1.01.006;A;193;Receitas de demonstração;D;DC;nao
+4.1.1.01.007;A;121;IOF de demonstração;D;DC;nao
+4.1.1.01.008;A;321;Juros de demonstração;D;DC;nao
+4.1.1.01.009;A;87;Seguros de demonstração;D;DC;nao
+4.1.1.01.010;A;251;Tarifas de demonstração;D;DC;nao
+4.1.1.01.011;A;352;Água de demonstração;D;DC;nao
+4.1.1.01.012;A;275;Energia de demonstração;D;DC;nao
+4.1.1.01.013;A;306;Adiantamentos de demonstração;D;DC;nao

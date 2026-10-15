@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Conciliador · Makro{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="{{ url_for('home') }}"><span class="brand-icon">≈</span> concilia<span class="brand-dot">.</span></a>
+    <div class="workspace-label">ESPAÇO CONTÁBIL</div>
+    <a class="nav-link" href="{{ url_for('home') }}"><span>▦</span> Clientes e conciliações</a>
+    <div class="sidebar-foot"><span class="status-dot"></span> Ambiente de desenvolvimento<br><small>Exportação para Makro System</small></div>
+  </aside>
+  <main>
+    <div class="topbar"><span>Conciliação bancária</span><span class="pill">Histórico fixo · 52</span></div>
+    <div class="content">
+      {% for category, message in get_flashed_messages(with_categories=true) %}<div role="status" class="flash {{ category }}">{{ message }}</div>{% endfor %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+  <datalist id="account-codes">{% for code, item in chart.items() %}{% if item.tipo == 'A' and item.inativada == 'nao' %}<option value="{{ code }}">{{ item.descricao }}</option>{% endif %}{% endfor %}</datalist>
+</body>
+</html>
