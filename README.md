@@ -5,9 +5,11 @@ Aplicativo de desenvolvimento para transformar extratos bancários em lançament
 ## Testar no Windows
 
 1. Baixe o projeto pelo GitHub em **Code → Download ZIP** e extraia toda a pasta.
-2. Instale Python 3.12 pelo site oficial [python.org](https://www.python.org/downloads/), marcando **Add Python to PATH**.
+2. Instale Python 3.12 ou posterior pelo site oficial [python.org](https://www.python.org/downloads/windows/). Se o instalador mostrar **Add python.exe to PATH**, marque essa opção.
 3. Abra `Iniciar-Windows.bat`. Na primeira vez, aguarde a instalação das dependências.
 4. Quando aparecer **Running on**, copie o endereço mostrado pelo terminal para o navegador. Mantenha a janela aberta durante o uso. Ctrl+C encerra o servidor.
+
+Se aparecer “Nenhum Python 3.12 ou superior foi encontrado”, a instalação do Python ainda é necessária ou não está acessível ao inicializador. Ele procura `py -3.12`, `py -3`, `python` e `python3`, além de reutilizar um ambiente `.venv` válido. Depois de instalar, feche a janela antiga e abra o inicializador novamente. Se continuar falhando, envie os resultados de `py --list` e `python --version`, executados no Prompt de Comando.
 
 O inicializador para Windows ainda precisa ser validado nesse sistema. O aplicativo e os testes foram executados em Linux com Python 3.12.
 
