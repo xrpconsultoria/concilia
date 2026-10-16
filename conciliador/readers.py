@@ -10,6 +10,7 @@ from .domain import InputError, Movement, Statement, money, normalize, parse_dat
 from .bank_layouts import read_cresol, read_sicredi
 from .more_layouts import read_bb, read_caixa, read_cora, read_inter, read_nubank
 from .local_ocr import read_image_pdf
+from .sicoob_portal import read_sicoob_portal
 
 
 def read_pdf(content, password=""):
@@ -19,14 +20,22 @@ def read_pdf(content, password=""):
             raise InputError("PDF protegido: informe a senha correta. A senha não é armazenada.")
         if len(reader.pages) > 200:
             raise InputError("Importe PDFs com até 200 páginas por arquivo.")
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        pages = []
+        for index, page in enumerate(reader.pages, 1):
+            try:
+                pages.append(page.extract_text() or "")
+            except Exception as exc:
+                raise InputError(f"PDF: não foi possível extrair o texto da página {index}. Gere novamente o PDF completo pelo banco ou envie o extrato OFX.") from exc
+        text = "\n".join(pages)
     except InputError:
         raise
     except Exception as exc:
-        raise InputError("Não foi possível ler o PDF. Verifique o arquivo e a senha.") from exc
+        raise InputError("O PDF está inválido, incompleto ou usa uma proteção não reconhecida. Abra-o no leitor de PDF e gere novamente pelo banco. Se estiver protegido, confira a senha; como alternativa, envie OFX.") from exc
     if "Plano de Contas" in text and "Tipo de Saldo" in text:
         raise InputError("Este PDF é um plano de contas. Salve-o em Clientes e configurações. Aqui, escolha o extrato bancário com os movimentos.")
-    if "SICOOB" in text and "HISTÓRICO DE MOVIMENTAÇÃO" in text:
+    if "SICOOB" in text.upper() and re.search(r"Data\s+Documento\s*Hist[oó]rico\s+Valor", text, re.I):
+        result = read_sicoob_portal(text)
+    elif "SICOOB" in text and "HISTÓRICO DE MOVIMENTAÇÃO" in text:
         result = read_sicoob(text)
     elif "C6" in text and "Data" in text and "contábil" in text:
         result = read_c6(text)
@@ -50,7 +59,9 @@ def read_pdf(content, password=""):
             raise InputError("PDF digitalizado: OCR disponível para o modelo Caixa Extrato por período. Para outros layouts, envie OFX ou CSV/XLSX com valores com sinal.")
         result = read_caixa(recognized, ocr=True)
     else:
-        raise InputError("Layout PDF ainda não reconhecido. Esta versão lê modelos de Sicoob, C6, Sicredi, Cresol, Banco do Brasil, Inter, Cora, Caixa e Nubank. Confira os modelos aceitos ou envie OFX/CSV/XLSX.")
+        bank = next((name for name in ("Sicoob", "Sicredi", "Cresol", "Banco Inter", "Cora", "Nubank", "Caixa", "C6", "Banco do Brasil") if name.upper() in text.upper()), None)
+        detail = f"do {bank}" if bank else "do banco"
+        raise InputError(f"O PDF tem texto, mas o modelo de extrato {detail} ainda não foi reconhecido ({len(pages)} páginas). Gere o extrato de conta corrente completo, sem comprovantes avulsos, ou envie OFX. Se já enviou esse mesmo modelo antes, informe o banco, o período e esta mensagem para ajustarmos o leitor.")
     if not result.movements:
         raise InputError("Nenhum movimento foi identificado; o arquivo não foi importado.")
     return result

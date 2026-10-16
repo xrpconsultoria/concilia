@@ -68,7 +68,7 @@ def prepare_private_chart(content, filename):
     return output.getvalue().encode("utf-8-sig"), len(rows)
 
 
-def validate_code(value, bank_code=None):
+def validate_code(value, bank_code=None, *, accounts=None):
     try:
         raw = str(value).strip()
         if not re.fullmatch(r"\d+(?:\.0+)?", raw):
@@ -76,7 +76,7 @@ def validate_code(value, bank_code=None):
         code = int(Decimal(raw))
     except (TypeError, ValueError) as exc:
         raise InputError("Informe um código contábil numérico.") from exc
-    row = chart().get(code)
+    row = (accounts if accounts is not None else chart()).get(code)
     if not row or row["tipo"] != "A" or row["inativada"] == "sim":
         raise InputError(f"Código {code} não é uma conta analítica ativa no plano fornecido.")
     if bank_code is not None and code == int(bank_code):
@@ -90,18 +90,25 @@ def learn_workbook(content, bank_code):
         if book.sheetnames != ["Lancamentos"]:
             raise InputError("A planilha de aprendizado deve ter apenas a aba Lancamentos.")
         rows = book.active.iter_rows(values_only=True)
-        if list(next(rows, ())) != HEADERS:
-            raise InputError("Cabeçalho diferente do modelo Makro de dez colunas.")
+        header_found = False
         rules = set()
         count = 0
-        for n, row in enumerate(rows, 2):
+        accounts = chart()
+        for n, row in enumerate(rows, 1):
             if all(x is None for x in row):
                 continue
-            if n > 20001:
+            if not header_found:
+                if list(row[:10]) != HEADERS or any(value is not None for value in row[10:]):
+                    raise InputError(f"Linha {n}: cabeçalho diferente do modelo Makro. Use Data, Conta, Valor, Debito, Credito, Historico, SCP, Departamento, Documento e CNPJ, nessa ordem. Linhas iniciais vazias e colunas extras sem dados são aceitas no aprendizado.")
+                header_found = True
+                continue
+            if any(value is not None for value in row[10:]):
+                raise InputError(f"Linha {n}: há dados além das dez colunas Makro. Remova esses dados ou copie somente as dez colunas para uma nova planilha.")
+            if count >= 20000:
                 raise InputError("Planilha excede 20.000 linhas.")
             if row[5] != 52 or not row[1]:
                 raise InputError(f"Linha {n}: histórico deve ser 52 e a descrição deve estar preenchida.")
-            debit, credit = validate_code(row[3]), validate_code(row[4])
+            debit, credit = validate_code(row[3], accounts=accounts), validate_code(row[4], accounts=accounts)
             if (debit == bank_code) == (credit == bank_code):
                 raise InputError(f"Linha {n}: a conta bancária {bank_code} deve aparecer em exatamente um lado.")
             direction = "entrada" if debit == bank_code else "saida"
@@ -122,8 +129,9 @@ def export_workbook(rows, bank_code):
     sheet = book["Lancamentos"]
     styles = [copy(sheet.cell(2, c)._style) for c in range(1, 11)]
     sheet.delete_rows(2, sheet.max_row)
+    accounts = chart()
     for n, row in enumerate(rows, 2):
-        code = validate_code(row["code"], bank_code)
+        code = validate_code(row["code"], bank_code, accounts=accounts)
         amount = abs(row["cents"]) / 100
         incoming = row["cents"] >= 0
         values = [datetime.strptime(row["date"], "%Y-%m-%d"), row["description"], amount,

@@ -34,7 +34,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.4
+## Fluxo guiado · v0.5
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -62,7 +62,7 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
 4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.4** na interface. Se necessário, recarregue a página com Ctrl+F5.
+5. Confira **v0.5** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -70,6 +70,7 @@ Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente 
 
 | Formato | Suporte desta versão |
 | --- | --- |
+| PDF Sicoob Internet Banking | Modelo de impressão do portal com Data/Documento/Histórico/Valor, inclusive cabeçalhos unidos e descrições entre páginas. Confere numeração de páginas, saldo anterior, saldos diários e saldo final; ordena por data sem remover movimentos iguais. Depósitos bloqueados com * ficam de fora; liberações e estornos C/D são preservados. |
 | PDF Sicoob SISBR | Histórico de movimentação, descrições em várias linhas e valores com C/D; conferência dos saldos diários. |
 | PDF C6 | Modelo com data de lançamento e data contábil, dentro de um mesmo ano; conferência dos totais mensais informados. |
 | PDF Sicredi | Modelo de conta corrente com Documento/Histórico/Débito/Crédito/Saldo; valores lidos pela posição das colunas. Saldos e totais são conferidos; resumos e lançamentos futuros ficam de fora. |
@@ -97,6 +98,16 @@ Descrições do PDF são preservadas, incluindo nomes truncados e caracteres inc
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
 
+### Correções da v0.5
+
+- O Sicoob Internet Banking é reconhecido como um layout separado do SISBR anterior. Os rodapés de impressão não entram nas descrições; registros continuam corretamente quando o histórico passa de uma página para outra. Divergências mostram data/página quando identificáveis e orientam a gerar novamente o PDF completo ou usar OFX.
+- O aprendizado aceita linhas iniciais vazias e colunas extras apenas formatadas, sem dados. O cabeçalho deve continuar com as dez colunas Makro, na mesma ordem. Dados extras são recusados com indicação da linha; a exportação mantém somente as dez colunas padrão.
+- No Sicoob Internet Banking, regras exatas também reconhecem formatos conhecidos de apresentação do mesmo histórico, complementos e documento (documento antes/depois do texto, separadores e rótulo de favorecido). Isso não completa nomes nem descarta informações para obter correspondência. Regras conflitantes continuam na 106; descrições truncadas/editadas podem exigir revisão ou uma regra por trecho do próprio cliente.
+- Revisão e download aceitam formulários grandes, dentro do limite de 20.000 movimentos. Corrigido o limite de campos que causava erro de “arquivo maior que 16 MB” em conciliações com centenas de linhas. O plano e as regras são preparados uma vez por operação, e a busca de possíveis repetidos é feita uma vez por lote.
+- O atalho para corrigir a conta aparece somente quando o número do extrato diverge do cadastro. Erros de leitura mantêm o arquivo e os campos e apresentam uma orientação correspondente ao problema.
+
+Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
+
 ### Avisos dos novos layouts
 
 O OCR da Caixa roda no computador, em memória, com RapidOCR/ONNX Runtime; não envia documentos a serviços externos. Os modelos vêm no pacote instalado pelo inicializador. A primeira instalação fica maior e exige internet para baixar as dependências; a leitura depois funciona sem internet. Não é necessário instalar Tesseract. Os saldos precisam fechar para aceitar o arquivo, mas nomes, espaços e acentos ainda podem conter erros de OCR: revise as descrições e regras. Dependências para Windows de 64 bits/Python 3.12 tiveram sua resolução e download verificados; a execução completa no Windows ainda precisa de validação nesse sistema.
@@ -112,7 +123,7 @@ No Nubank, rendimento líquido informado apenas no resumo, sem lançamento datad
 `Data | Conta | Valor | Debito | Credito | Historico | SCP | Departamento | Documento | CNPJ`
 
 - Data: data de lançamento como data Excel.
-- Conta: descrição do movimento; no Sicoob inclui o documento na descrição.
+- Conta: descrição do movimento. O modelo Sicoob SISBR inclui o documento na descrição; no Internet Banking, ele fica disponível para consulta e a descrição reúne histórico e complementos.
 - Valor: absoluto e numérico.
 - Debito / Credito: conta bancária e contrapartida conforme o sentido do movimento.
 - Historico: sempre o número **52**.

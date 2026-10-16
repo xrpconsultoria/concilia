@@ -9,7 +9,7 @@ import secrets
 from flask import Flask, abort, flash, g, redirect, render_template, request, send_file, session, url_for
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from conciliador.domain import InputError, account_digits, classify, normalize, parse_date
+from conciliador.domain import InputError, RuleClassifier, account_digits, classify, normalize, parse_date
 from conciliador.makro import PRIVATE_CHART, chart, export_workbook, learn_workbook, prepare_private_chart, validate_code
 from conciliador.readers import read_statement
 from conciliador.store import connect
@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent
 
 def create_app(test_config=None):
     app = Flask(__name__)
-    app.config.update(MAX_CONTENT_LENGTH=16 * 1024 * 1024, DATABASE=str(ROOT / "data" / "conciliador.sqlite3"), SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict")
+    app.config.update(MAX_CONTENT_LENGTH=16 * 1024 * 1024, MAX_FORM_PARTS=50000, MAX_FORM_MEMORY_SIZE=4 * 1024 * 1024, DATABASE=str(ROOT / "data" / "conciliador.sqlite3"), SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict")
     if test_config:
         app.config.update(test_config)
     if not app.config.get("SECRET_KEY"):
@@ -87,7 +87,7 @@ def create_app(test_config=None):
     def input_error(exc):
         if wants_json():
             result = {"error": str(exc)}
-            if request.endpoint == "import_file" and request.form.get("account_id", "").isdigit():
+            if exc.account_mismatch and request.endpoint == "import_file" and request.form.get("account_id", "").isdigit():
                 result["account_url"] = url_for("edit_account", account_id=int(request.form["account_id"]))
             return result, 422
         flash(str(exc), "error")
@@ -95,9 +95,12 @@ def create_app(test_config=None):
 
     @app.errorhandler(RequestEntityTooLarge)
     def too_big(exc):
+        message = "Arquivo maior que 16 MB. Divida o extrato em arquivos menores."
+        if request.endpoint in ("review", "export"):
+            message = "A revisão excedeu o limite de campos ou de tamanho do envio. Reenvie o extrato em períodos menores para gerar lotes menores. Os dados já salvos continuam disponíveis."
         if wants_json():
-            return {"error": "Arquivo maior que 16 MB. Divida o extrato em arquivos menores."}, 413
-        flash("Arquivo maior que 16 MB. Divida o extrato em arquivos menores.", "error")
+            return {"error": message}, 413
+        flash(message, "error")
         return redirect(url_for("home"))
 
     def all_accounts():
@@ -295,9 +298,9 @@ def create_app(test_config=None):
         except InputError:
             raise
         except Exception as exc:
-            raise InputError("Não foi possível interpretar o arquivo. Verifique o formato e o mapeamento de colunas.") from exc
+            raise InputError("O arquivo não pôde ser processado. Para PDF, gere novamente o extrato completo no banco ou envie OFX; para tabela, confira as colunas de data, descrição e valor com sinal. Se persistir, informe o formato, o banco e o período para analisarmos esse modelo.") from exc
         if statement.bank_account and account_digits(statement.bank_account) != account_digits(account["number"]):
-            raise InputError(f"A conta identificada no extrato ({statement.bank_account}) difere da conta selecionada ({account['number']}). Confira o cadastro ou escolha a conta correta.")
+            raise InputError(f"A conta identificada no extrato ({statement.bank_account}) difere da conta selecionada ({account['number']}). Confira o cadastro ou escolha a conta correta.", account_mismatch=True)
         start = parse_date(request.form["start"]) if request.form.get("start") else min(m.date for m in statement.movements)
         end = parse_date(request.form["end"]) if request.form.get("end") else max(m.date for m in statement.movements)
         if start > end:
@@ -305,6 +308,8 @@ def create_app(test_config=None):
         items = [m for m in statement.movements if start <= m.date <= end]
         if not items:
             raise InputError("Não há movimentos no período selecionado.")
+        if len(items) > 20000:
+            raise InputError(f"O período selecionado contém {len(items)} movimentos. O limite por conciliação é 20.000; preencha De/Até com um período menor ou gere extratos separados no banco.")
         fingerprint = hashlib.sha256(content).hexdigest()
         filename = Path(upload.filename).name
         if password:
@@ -313,14 +318,15 @@ def create_app(test_config=None):
         if existing:
             flash("Este arquivo e período já foram importados. Abrimos a conciliação existente para você revisar e baixar o Excel.", "success")
             return go_to("batch_page", batch_id=existing["id"])
-        rules = db().execute("SELECT * FROM rules WHERE account_id=?", (account["id"],)).fetchall()
+        rules = RuleClassifier(db().execute("SELECT * FROM rules WHERE account_id=?", (account["id"],)).fetchall())
+        previous_rows = db().execute("SELECT m.date,m.cents,m.description FROM movements m JOIN batches b ON b.id=m.batch_id WHERE b.account_id=? AND m.date>=? AND m.date<=?", (account["id"], start.isoformat(), end.isoformat())).fetchall()
+        previous_keys = {(row["date"], row["cents"], normalize(row["description"])) for row in previous_rows}
         with db():
             batch_id = db().execute("INSERT INTO batches(account_id,source_hash,filename,layout,start,end,warnings) VALUES(?,?,?,?,?,?,?)", (account["id"], fingerprint, filename, statement.layout, start.isoformat(), end.isoformat(), json.dumps(statement.warnings, ensure_ascii=False))).lastrowid
             for movement in items:
                 code, reason = classify(movement, rules, account["default_in"], account["default_out"])
                 # Suspected overlaps stay visible; legitimate equal movements within the same source are retained.
-                previous = db().execute("SELECT m.description FROM movements m JOIN batches b ON b.id=m.batch_id WHERE b.account_id=? AND b.id<>? AND m.date=? AND m.cents=?", (account["id"], batch_id, movement.date.isoformat(), movement.cents)).fetchall()
-                duplicate = any(normalize(r[0]) == normalize(movement.description) for r in previous)
+                duplicate = (movement.date.isoformat(), movement.cents, normalize(movement.description)) in previous_keys
                 db().execute("INSERT INTO movements(batch_id,date,book_date,description,cents,document,code,reason,duplicate,include_row) VALUES(?,?,?,?,?,?,?,?,?,?)", (batch_id, movement.date.isoformat(), movement.book_date.isoformat() if movement.book_date else None, movement.description, movement.cents, movement.document, code, reason, int(duplicate), int(not duplicate)))
         flash(f"{len(items)} movimentos importados. Revise a classificação e os possíveis repetidos.", "success")
         return go_to("batch_page", batch_id=batch_id)
@@ -344,8 +350,9 @@ def create_app(test_config=None):
         rows = db().execute("SELECT * FROM movements WHERE batch_id=?", (batch_id,)).fetchall()
         updates = []
         changed = False
+        accounts = chart()
         for row in rows:
-            code = validate_code(request.form.get(f"code_{row['id']}", row["code"]), account["bank_code"])
+            code = validate_code(request.form.get(f"code_{row['id']}", row["code"]), account["bank_code"], accounts=accounts)
             include = int(f"include_{row['id']}" in request.form)
             changed = changed or code != row["code"] or include != row["include_row"]
             updates.append((code, include, row["id"]))

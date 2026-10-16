@@ -6,7 +6,9 @@ import unicodedata
 
 
 class InputError(ValueError):
-    pass
+    def __init__(self, message, *, account_mismatch=False):
+        super().__init__(message)
+        self.account_mismatch = account_mismatch
 
 
 def normalize(text):
@@ -46,6 +48,7 @@ class Movement:
     cents: int
     document: str = ""
     book_date: date | None = None
+    description_variants: tuple[str, ...] = ()
 
     @property
     def direction(self):
@@ -64,16 +67,35 @@ def account_digits(value):
     return re.sub(r"\D", "", str(value)).lstrip("0")
 
 
+class RuleClassifier:
+    """Normalize account-scoped rules once, retaining conflicts and exact priority."""
+
+    def __init__(self, rules):
+        self.exact = {}
+        self.contains = []
+        for rule in rules:
+            direction, pattern, code = rule["direction"], normalize(rule["pattern"]), int(rule["code"])
+            if rule["kind"] == "exact":
+                self.exact.setdefault((direction, pattern), set()).add(code)
+            elif rule["kind"] == "contains":
+                self.contains.append((direction, pattern, code))
+
+    def classify(self, movement, default_in=106, default_out=106):
+        text = normalize(movement.description)
+        codes = set()
+        for variant in (text, *movement.description_variants):
+            codes.update(self.exact.get((movement.direction, normalize(variant)), ()))
+        if not codes:
+            codes = {code for direction, pattern, code in self.contains if direction == movement.direction and pattern in text}
+        if len(codes) > 1:
+            return 106, "Regras conflitantes; revisar"
+        if codes:
+            code = codes.pop()
+            return code, "Regra do cliente" if code != 106 else "Pendência intencional"
+        code = default_in if movement.cents >= 0 else default_out
+        return code, "Padrão configurado para a conta" if code != 106 else "Sem regra; revisar"
+
+
 def classify(movement, rules, default_in=106, default_out=106):
-    text = normalize(movement.description)
-    candidates = [r for r in rules if r["direction"] == movement.direction]
-    exact = [r for r in candidates if r["kind"] == "exact" and normalize(r["pattern"]) == text]
-    matches = exact or [r for r in candidates if r["kind"] == "contains" and normalize(r["pattern"]) in text]
-    codes = {int(r["code"]) for r in matches}
-    if len(codes) > 1:
-        return 106, "Regras conflitantes; revisar"
-    if codes:
-        code = codes.pop()
-        return code, "Regra do cliente" if code != 106 else "Pendência intencional"
-    code = default_in if movement.cents >= 0 else default_out
-    return code, "Padrão configurado para a conta" if code != 106 else "Sem regra; revisar"
+    classifier = rules if isinstance(rules, RuleClassifier) else RuleClassifier(rules)
+    return classifier.classify(movement, default_in, default_out)
