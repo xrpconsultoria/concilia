@@ -34,7 +34,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.3
+## Fluxo guiado · v0.4
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -62,7 +62,7 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
 4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.3** na interface. Se necessário, recarregue a página com Ctrl+F5.
+5. Confira **v0.4** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -74,11 +74,16 @@ Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente 
 | PDF C6 | Modelo com data de lançamento e data contábil, dentro de um mesmo ano; conferência dos totais mensais informados. |
 | PDF Sicredi | Modelo de conta corrente com Documento/Histórico/Débito/Crédito/Saldo; valores lidos pela posição das colunas. Saldos e totais são conferidos; resumos e lançamentos futuros ficam de fora. |
 | PDF Cresol | Modelo com saldos diários, valores com sinal e documento abaixo da descrição. Preserva estornos, confere os saldos e ordena os movimentos por data. |
+| PDF Banco do Brasil | Extrato de Conta Corrente com Dia/Lote/Documento/Histórico/Valor e sinais (+)/(-). Confere saldos, preserva a data de efetivação e recompõe o ano dividido entre páginas quando o dígito está impresso. |
+| PDF Inter | Modelo com saldo do dia e saldo por transação. Preserva continuações entre páginas e confere os saldos; não usa o saldo atual do cabeçalho como saldo final do período. |
+| PDF Cora | Modelo Transações com favorecido, CPF/CNPJ e valores com sinal. Confere totais e saldos diários; mantém a ordem decrescente do PDF e as descrições da coluna de favorecido/CPF/CNPJ. |
+| PDF Caixa | Extrato por período com documento, histórico/complemento, favorecido, valor e saldo C/D, em ordem decrescente. Confere o saldo de cada linha e exporta em ordem cronológica. O modelo digitalizado também é lido por OCR local. |
+| PDF Nubank | Modelo Movimentações com totais diários, saldos e rendimento líquido no resumo. Preserva os detalhes de cada transferência; confere totais e saldos considerando o rendimento. |
 | PDF protegido | Senha usada em memória para abrir o arquivo. Não é salva nos campos do lote; se aparecer no nome do arquivo, esse trecho é ocultado no nome salvo. |
 | OFX | STMTTRN XML/SGML, DTPOSTED, TRNAMT, MEMO/NAME e FITID. |
 | CSV / XLSX | Cabeçalho na primeira linha: data, descrição e valor com sinal; mapeamento de nomes de colunas disponível. CSV UTF-8 ou Windows-1252, delimitado por vírgula, ponto e vírgula ou tabulação. XLSX usa a primeira aba e rejeita fórmulas. |
 
-Valores positivos na tabela de extrato representam entradas e negativos representam saídas. Planilhas Makro já conciliadas usam valores absolutos e devem ser enviadas no aprendizado, não como extrato. PDFs digitalizados e outros layouts PDF exigem leitores adicionais; não há OCR nesta versão. Limites: 16 MB por envio, 200 páginas por PDF e 20.000 linhas por tabela.
+Valores positivos na tabela de extrato representam entradas e negativos representam saídas. Planilhas Makro já conciliadas usam valores absolutos e devem ser enviadas no aprendizado, não como extrato. Outros layouts PDF exigem leitores adicionais. Limites: 16 MB por envio, 200 páginas por PDF com texto, 20 páginas por execução de OCR e 20.000 linhas por tabela. O OCR está limitado ao modelo Caixa descrito acima; documentos sem leitura financeira confiável são recusados.
 
 O PDF do plano de contas deve ser o relatório tabular do Makro com classificação, S/A, código, descrição, D/C e tipo de saldo. CSV do plano usa ponto e vírgula e o cabeçalho:
 
@@ -91,6 +96,14 @@ Tipo deve ser S ou A e inativada deve ser sim ou nao. A conta analítica ativa 1
 Descrições do PDF são preservadas, incluindo nomes truncados e caracteres incomuns; o aplicativo não completa nomes. Uma planilha conciliada que tenha corrigido a grafia pode não gerar uma regra exata para o texto original do extrato. Nesses casos, revise a conta 106 ou cadastre uma regra por trecho. O Sicredi pode reunir mais de um mês no mesmo arquivo: use o filtro de datas quando quiser exportar apenas um mês.
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
+
+### Avisos dos novos layouts
+
+O OCR da Caixa roda no computador, em memória, com RapidOCR/ONNX Runtime; não envia documentos a serviços externos. Os modelos vêm no pacote instalado pelo inicializador. A primeira instalação fica maior e exige internet para baixar as dependências; a leitura depois funciona sem internet. Não é necessário instalar Tesseract. Os saldos precisam fechar para aceitar o arquivo, mas nomes, espaços e acentos ainda podem conter erros de OCR: revise as descrições e regras. Dependências para Windows de 64 bits/Python 3.12 tiveram sua resolução e download verificados; a execução completa no Windows ainda precisa de validação nesse sistema.
+
+Se o extrato Caixa trouxer movimentos do mesmo mês posteriores ao fim indicado no cabeçalho, eles são preservados com aviso visível. Confira o filtro de datas escolhido. Movimentos fora do mês são recusados.
+
+No Nubank, rendimento líquido informado apenas no resumo, sem lançamento datado, participa da conferência do saldo e gera aviso visível. Ele **não cria uma linha com data inventada**: confira e registre o rendimento separadamente no Makro. A exportação contém as transações datadas do PDF. As descrições completas podem diferir de planilhas simplificadas; uma regra exata com texto diferente fica na 106. Confira especialmente o destinatário das transferências enviadas.
 
 ## Exportação Makro
 
@@ -109,7 +122,7 @@ A importação efetiva precisa ser conferida no próprio Makro. O aplicativo pre
 
 ## Testes
 
-Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemplos fictícios e verifica leitores, valores em centavos, datas, senhas, totais, conflitos, isolamento por conta, estrutura da exportação, códigos contábeis, fórmulas, duplicidades, plano local, cadastro guiado, edição segura de conta, erros de importação e migração do banco. Não depende de documentos de clientes. Os testes adicionais Sicredi e Cresol cobrem posição das colunas, saldo negativo, transporte entre páginas, totais, estornos, descrições em várias linhas, documentos ausentes, repetições legítimas e rejeição de linhas ambíguas. O fluxo completo também é validado em navegador, incluindo seleção por cliente, revisão, download e uso em tela móvel.
+Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemplos fictícios e verifica leitores, valores em centavos, datas, senhas, totais, conflitos, isolamento por conta, estrutura da exportação, códigos contábeis, fórmulas, duplicidades, plano local, cadastro guiado, edição segura de conta, erros de importação e migração do banco. Não depende de documentos de clientes. Os testes adicionais Sicredi e Cresol cobrem posição das colunas, saldo negativo, transporte entre páginas, totais, estornos, descrições em várias linhas, documentos ausentes, repetições legítimas e rejeição de linhas ambíguas. Os testes de BB, Inter, Cora, Caixa e Nubank cobrem datas divididas entre páginas, totais e saldos, continuação de dia, ordem decrescente, tarifas no mesmo horário, rendimento sem data, preservação do destinatário, avisos visíveis, confiança mínima do OCR e estrutura Makro. O fluxo completo também é validado em navegador, incluindo seleção por cliente, revisão, download e uso em tela móvel.
 
 ## Dados locais
 

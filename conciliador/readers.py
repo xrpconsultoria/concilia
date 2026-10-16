@@ -8,6 +8,8 @@ from pypdf import PdfReader
 
 from .domain import InputError, Movement, Statement, money, normalize, parse_date
 from .bank_layouts import read_cresol, read_sicredi
+from .more_layouts import read_bb, read_caixa, read_cora, read_inter, read_nubank
+from .local_ocr import read_image_pdf
 
 
 def read_pdf(content, password=""):
@@ -32,8 +34,23 @@ def read_pdf(content, password=""):
         result = read_sicredi(_positioned_text(reader))
     elif all(marker in text for marker in ["Saldo em Conta", "Saldo Disponível", "Lançamentos", "Consulta Posição consolidada", "Saldo Anterior:"]):
         result = read_cresol(_positioned_text(reader))
+    elif "Extrato de Conta Corrente" in text and all(marker in text for marker in ["Lote", "Documento", "Histórico", "Valor", "Saldo Anterior"]):
+        result = read_bb(_positioned_text(reader))
+    elif "Banco Inter" in text and "Saldo por transação" in text:
+        result = read_inter(_positioned_text(reader))
+    elif "Cora SCFI" in text and "Transações" in text and "Saldo inicial disponível" in text:
+        result = read_cora(_positioned_text(reader))
+    elif "Nu Pagamentos" in text and "Movimentações" in text and "Rendimento líquido" in text:
+        result = read_nubank(_positioned_text(reader))
+    elif "CAIXA" in text.upper() and re.search(r"Hist[oó]rico/Complemento", text, re.I) and "SALDO ANTERIOR" in text:
+        result = read_caixa(_positioned_text(reader))
+    elif not text.strip():
+        recognized = read_image_pdf(content, password)
+        if "CAIXA" not in recognized.upper() or not re.search(r"Extrato\s*por\s*per[ií]odo", recognized, re.I):
+            raise InputError("PDF digitalizado: OCR disponível para o modelo Caixa Extrato por período. Para outros layouts, envie OFX ou CSV/XLSX com valores com sinal.")
+        result = read_caixa(recognized, ocr=True)
     else:
-        raise InputError("Layout PDF ainda não reconhecido. Esta versão lê Sicoob SISBR, C6 com duas datas, Sicredi com débito/crédito e Cresol com saldos diários. PDFs digitalizados precisam de um leitor com OCR.")
+        raise InputError("Layout PDF ainda não reconhecido. Esta versão lê modelos de Sicoob, C6, Sicredi, Cresol, Banco do Brasil, Inter, Cora, Caixa e Nubank. Confira os modelos aceitos ou envie OFX/CSV/XLSX.")
     if not result.movements:
         raise InputError("Nenhum movimento foi identificado; o arquivo não foi importado.")
     return result
