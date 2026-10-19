@@ -6,7 +6,7 @@ Aplicativo de desenvolvimento para transformar extratos bancários em lançament
 
 1. Baixe o projeto pelo GitHub em **Code → Download ZIP** e extraia toda a pasta.
 2. Instale **Python 3.12 de 64 bits** pela [página oficial do Python 3.12.10](https://www.python.org/downloads/release/python-31210/): em **Files**, escolha **Windows installer (64-bit)**. Se o instalador mostrar **Add python.exe to PATH**, marque essa opção.
-3. Abra `Iniciar-Windows.bat`. Na primeira vez, aguarde a instalação das dependências.
+3. Abra `Iniciar-Windows.bat` dentro da pasta extraída. A janela deve começar com **Concilia v0.5.3 - iniciar** e mostrar a pasta aberta. Na primeira vez, aguarde a instalação das dependências.
 4. Quando aparecer **Running on**, copie o endereço mostrado pelo terminal para o navegador. Mantenha a janela aberta durante o uso. Ctrl+C encerra o servidor.
 
 Esta versão usa o pacote de OCR `rapidocr-onnxruntime==1.4.4`, que exige Python anterior ao 3.13. As outras dependências fixadas exigem pelo menos 3.12. Por isso, o aplicativo usa **exatamente Python 3.12 de 64 bits**, com qualquer atualização dessa série. Python 3.13/3.14 pode continuar instalado para outros programas.
@@ -37,7 +37,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.5.2
+## Fluxo guiado · v0.5.3
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -64,8 +64,8 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 1. Encerre o aplicativo com Ctrl+C na janela do servidor.
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
-4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.5.2** na interface. Se necessário, recarregue a página com Ctrl+F5.
+4. Abra `Iniciar-Windows.bat` diretamente dentro da nova pasta. Um atalho antigo pode continuar abrindo a instalação anterior. Confira **Concilia v0.5.3 - iniciar** e o caminho da pasta na janela. A atualização do banco é automática e preserva os registros existentes.
+5. Confira **v0.5.3** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -101,6 +101,12 @@ Descrições do PDF são preservadas, incluindo nomes truncados e caracteres inc
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
 
+### Identificação da instalação na v0.5.3
+
+A janela de início agora mostra a versão e a pasta aberta antes de buscar o Python. O bootstrap também mostra sua própria versão, a pasta do aplicativo e a versão do Python que o abriu, antes de selecionar o 3.12 para o aplicativo. Isso permite identificar arquivos de versões diferentes ou atalhos que ainda abrem uma instalação anterior. Se a janela mostrar apenas **Concilia - iniciar** e o erro antigo de `UnicodeDecodeError`, atualize a pasta conforme as instruções acima.
+
+O Python 3.15 exibido no caminho de um erro confirma que essa versão abriu o inicializador; isso não informa se o 3.12 também está instalado. A busca da versão corrigida verifica o 3.12 separadamente. Se ele não for encontrado, a mensagem informa como instalar a versão necessária.
+
 ### Correção de inicialização no Windows da v0.5.2
 
 Corrigida a leitura das respostas de outros interpretadores/launchers quando o Python novo usa UTF-8 e algum processo filho escreve mensagens em uma página de código antiga do Windows (como cp1252). Isso podia gerar `UnicodeDecodeError` em uma thread e fazer um Python válido passar despercebido, especialmente em caminhos com acentos. A busca agora captura bytes e usa um protocolo JSON ASCII para os dados do interpretador; nomes de pastas acentuados são preservados.
@@ -121,7 +127,7 @@ Corrigida a seleção de Python que permitia criar o ambiente com 3.13 ou mais n
 - Revisão e download aceitam formulários grandes, dentro do limite de 20.000 movimentos. Corrigido o limite de campos que causava erro de “arquivo maior que 16 MB” em conciliações com centenas de linhas. O plano e as regras são preparados uma vez por operação, e a busca de possíveis repetidos é feita uma vez por lote.
 - O atalho para corrigir a conta aparece somente quando o número do extrato diverge do cadastro. Erros de leitura mantêm o arquivo e os campos e apresentam uma orientação correspondente ao problema.
 
-Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.2**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
+Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.3**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
 
 ### Avisos dos novos layouts
 

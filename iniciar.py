@@ -14,6 +14,7 @@ import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parent
+VERSION = "0.5.3"
 REQUIRED_VERSION = (3, 12)
 IS_WINDOWS = sys.platform == "win32"
 DOWNLOAD_URL = "https://www.python.org/downloads/release/python-31210/"
@@ -160,6 +161,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Instala e inicia o Concilia com Python 3.12 de 64 bits.")
     parser.add_argument("--preparar", action="store_true", help="Instala e verifica as dependencias, sem iniciar o servidor.")
     args = parser.parse_args(argv)
+    print("Inicializador Concilia v" + VERSION, flush=True)
+    print("Pasta do aplicativo: " + str(ROOT), flush=True)
+    print("Python do inicializador: " + ".".join(map(str, sys.version_info[:3])), flush=True)
     try:
         python = prepare_environment(ROOT)
         run_step((str(python), "-m", "pip", "install", "--disable-pip-version-check", "--no-cache-dir", "--only-binary=:all:", "-r", str(ROOT / "requirements.txt")), "Instalando dependencias do Concilia...", ROOT)
