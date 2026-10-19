@@ -5,17 +5,21 @@ Aplicativo de desenvolvimento para transformar extratos bancários em lançament
 ## Testar no Windows
 
 1. Baixe o projeto pelo GitHub em **Code → Download ZIP** e extraia toda a pasta.
-2. Instale Python 3.12 ou posterior pelo site oficial [python.org](https://www.python.org/downloads/windows/). Se o instalador mostrar **Add python.exe to PATH**, marque essa opção.
+2. Instale **Python 3.12 de 64 bits** pela [página oficial do Python 3.12.10](https://www.python.org/downloads/release/python-31210/): em **Files**, escolha **Windows installer (64-bit)**. Se o instalador mostrar **Add python.exe to PATH**, marque essa opção.
 3. Abra `Iniciar-Windows.bat`. Na primeira vez, aguarde a instalação das dependências.
 4. Quando aparecer **Running on**, copie o endereço mostrado pelo terminal para o navegador. Mantenha a janela aberta durante o uso. Ctrl+C encerra o servidor.
 
-Se aparecer “Nenhum Python 3.12 ou superior foi encontrado”, a instalação do Python ainda é necessária ou não está acessível ao inicializador. Ele procura `py -3.12`, `py -3`, `python` e `python3`, além de reutilizar um ambiente `.venv` válido. Depois de instalar, feche a janela antiga e abra o inicializador novamente. Se continuar falhando, envie os resultados de `py --list` e `python --version`, executados no Prompt de Comando.
+Esta versão usa o pacote de OCR `rapidocr-onnxruntime==1.4.4`, que exige Python anterior ao 3.13. As outras dependências fixadas exigem pelo menos 3.12. Por isso, o aplicativo usa **exatamente Python 3.12 de 64 bits**, com qualquer atualização dessa série. Python 3.13/3.14 pode continuar instalado para outros programas.
 
-O inicializador para Windows ainda precisa ser validado nesse sistema. O aplicativo e os testes foram executados em Linux com Python 3.12.
+O inicializador pode ser aberto por outro Python (3.8 ou mais novo), mas `iniciar.py` localiza e seleciona o 3.12 antes de instalar as dependências. No Windows, ele consulta o launcher, o registro e os diretórios comuns de instalação. Não é obrigatório que o 3.12 seja o Python padrão no PATH. Um ambiente `.venv` já compatível é reutilizado.
+
+Se o `.venv` foi criado com Python incompatível, o inicializador primeiro encontra o 3.12 e depois preserva o ambiente antigo em `.venv-backup-...`, criando um novo. A pasta `data/`, com cadastros, regras e conciliações, não é movida nem apagada. Se o Python correto estiver ausente, o programa mostra a versão necessária e o link de instalação sem tentar instalar os pacotes. Não use `--ignore-requires-python` nem versões antigas aleatórias do OCR para contornar a mensagem.
+
+A seleção e a recuperação do ambiente foram executadas em Linux com Python 3.12 e 3.13, incluindo instalação limpa e carregamento local dos modelos de OCR. A resolução e o download de todos os pacotes para Windows/Python 3.12 de 64 bits foram verificados. A execução do arquivo `.bat` no Windows ainda precisa ser validada nesse sistema.
 
 ## Testar em macOS ou Linux
 
-Instale Python 3.12 ou posterior e execute, no terminal da pasta extraída:
+Instale **Python 3.12 de 64 bits** e execute, no terminal da pasta extraída:
 
 ```sh
 bash iniciar-mac-linux.sh
@@ -24,8 +28,7 @@ bash iniciar-mac-linux.sh
 Para instalação manual ou desenvolvimento, na raiz do projeto:
 
 ```sh
-python -m venv .venv
-.venv/bin/python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
+python3.12 iniciar.py --preparar
 .venv/bin/python -m unittest discover -v
 .venv/bin/python app.py
 ```
@@ -34,7 +37,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.5
+## Fluxo guiado · v0.5.1
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -62,7 +65,7 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
 4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.5** na interface. Se necessário, recarregue a página com Ctrl+F5.
+5. Confira **v0.5.1** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -98,6 +101,10 @@ Descrições do PDF são preservadas, incluindo nomes truncados e caracteres inc
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
 
+### Correção de instalação da v0.5.1
+
+Corrigida a seleção de Python que permitia criar o ambiente com 3.13 ou mais novo e depois falhava ao instalar o OCR. Os dois inicializadores usam o mesmo bootstrap, que seleciona Python 3.12 de 64 bits, recupera ambientes incompatíveis com backup e verifica as bibliotecas antes de iniciar. Leitores bancários, regras, banco de dados e exportação Makro permanecem os mesmos da v0.5.
+
 ### Correções da v0.5
 
 - O Sicoob Internet Banking é reconhecido como um layout separado do SISBR anterior. Os rodapés de impressão não entram nas descrições; registros continuam corretamente quando o histórico passa de uma página para outra. Divergências mostram data/página quando identificáveis e orientam a gerar novamente o PDF completo ou usar OFX.
@@ -106,7 +113,7 @@ Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma co
 - Revisão e download aceitam formulários grandes, dentro do limite de 20.000 movimentos. Corrigido o limite de campos que causava erro de “arquivo maior que 16 MB” em conciliações com centenas de linhas. O plano e as regras são preparados uma vez por operação, e a busca de possíveis repetidos é feita uma vez por lote.
 - O atalho para corrigir a conta aparece somente quando o número do extrato diverge do cadastro. Erros de leitura mantêm o arquivo e os campos e apresentam uma orientação correspondente ao problema.
 
-Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
+Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.1**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
 
 ### Avisos dos novos layouts
 
@@ -138,6 +145,8 @@ Execute `python -m unittest discover -v` no ambiente virtual. A suíte usa exemp
 ## Dados locais
 
 `data/` contém o banco SQLite, a chave de sessão e o plano próprio carregado. `.venv/` contém as dependências. Ambos são ignorados pelo Git. Extratos, planilhas de clientes, exportações e screenshots não devem ser versionados. Os assets publicados são demonstrativos.
+
+Ambientes `.venv-backup-...` são locais e ignorados pelo Git, assim como `.venv/`. Eles guardam somente o ambiente anterior, não substituem o backup da pasta `data/`.
 
 O aplicativo armazena movimentos e resumo do lote, sem copiar o extrato original enviado. Faça backup de `data/` para preservar os cadastros e revisões. O ZIP baixado do GitHub começa sem clientes, regras ou movimentações.
 

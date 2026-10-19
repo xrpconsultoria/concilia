@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
-python3 -c 'import sys; assert sys.version_info >= (3,12), "Instale Python 3.12 ou posterior"'
-if [ ! -x .venv/bin/python ]; then
-  python3 -m venv .venv
+for concilia_python in python3.12 python3 python; do
+  if command -v "$concilia_python" >/dev/null 2>&1 && "$concilia_python" -c 'import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)' >/dev/null 2>&1; then
+    exec "$concilia_python" iniciar.py "$@"
+  fi
+done
+if [ -x .venv/bin/python ] && .venv/bin/python -c 'import sys,struct; sys.exit(0 if sys.version_info[:2] == (3,12) and struct.calcsize("P") == 8 else 1)' >/dev/null 2>&1; then
+  exec .venv/bin/python iniciar.py "$@"
 fi
-.venv/bin/python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
-printf '%s
-' 'Abra no navegador o endereço mostrado em Running on. Mantenha este terminal aberto; Ctrl+C encerra o aplicativo.'
-exec .venv/bin/python app.py
+printf '%s\n' 'Instale Python 3.12 de 64 bits e abra o inicializador novamente. A pasta data foi preservada.'
+exit 1

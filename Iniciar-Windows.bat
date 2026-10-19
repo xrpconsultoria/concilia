@@ -1,61 +1,47 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-echo Concilia - teste local
+echo Concilia - iniciar
 
-rem Reutilize um ambiente existente sem exigir o launcher global.
-if exist ".venv\Scripts\python.exe" goto :validar_ambiente
-
-rem O launcher pode existir sem ter especificamente a versao 3.12.
+rem O bootstrap pode rodar com Python novo; ele seleciona o 3.12 para o aplicativo.
 set "CONCILIA_PYTHON="
 call :tentar_python py -3.12
-if defined CONCILIA_PYTHON goto :criar_ambiente
+if defined CONCILIA_PYTHON goto :iniciar
 call :tentar_python py -3
-if defined CONCILIA_PYTHON goto :criar_ambiente
+if defined CONCILIA_PYTHON goto :iniciar
 call :tentar_python python
-if defined CONCILIA_PYTHON goto :criar_ambiente
+if defined CONCILIA_PYTHON goto :iniciar
 call :tentar_python python3
-if defined CONCILIA_PYTHON goto :criar_ambiente
+if defined CONCILIA_PYTHON goto :iniciar
+if defined LOCALAPPDATA call :tentar_python "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if defined CONCILIA_PYTHON goto :iniciar
+if defined ProgramFiles call :tentar_python "%ProgramFiles%\Python312\python.exe"
+if defined CONCILIA_PYTHON goto :iniciar
+
+rem Reutilize o Python local somente se for compativel; ele nao precisara ser movido.
+if exist ".venv\Scripts\python.exe" .venv\Scripts\python.exe -c "import sys,struct; sys.exit(0 if sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8 else 1)" >nul 2>nul
+if not errorlevel 1 if exist ".venv\Scripts\python.exe" set "CONCILIA_PYTHON=.venv\Scripts\python.exe"
+if defined CONCILIA_PYTHON goto :iniciar
 
 echo.
-echo Nenhum Python 3.12 ou superior foi encontrado.
-echo 1. Acesse https://www.python.org/downloads/windows/
-echo 2. Instale uma versao Python 3.12 ou superior.
-echo 3. Se o instalador mostrar Add python.exe to PATH, marque essa opcao.
-echo 4. Feche esta janela e abra Iniciar-Windows.bat novamente.
-echo.
-echo Se voce ja instalou o Python, envie o resultado de: py --list
-echo E tambem de: python --version
+echo Instale Python 3.12 de 64 bits para usar o Concilia.
+echo Acesse https://www.python.org/downloads/release/python-31210/
+echo Em Files, escolha Windows installer (64-bit).
+echo Depois abra Iniciar-Windows.bat novamente. Sua pasta data sera preservada.
 pause
 exit /b 1
 
 :tentar_python
-%* -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)" >nul 2>nul
+%* -c "import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)" >nul 2>nul
 if not errorlevel 1 set "CONCILIA_PYTHON=%*"
 exit /b 0
 
-:criar_ambiente
-echo Python encontrado: %CONCILIA_PYTHON%
-%CONCILIA_PYTHON% -m venv .venv
-if errorlevel 1 goto :erro
-
-:validar_ambiente
-.venv\Scripts\python.exe -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)" >nul 2>nul
+:iniciar
+%CONCILIA_PYTHON% iniciar.py
 if errorlevel 1 (
-  echo O ambiente em .venv nao funciona ou usa um Python anterior ao 3.12.
-  echo Extraia o projeto em uma nova pasta e tente novamente. Preserve a pasta data se ja cadastrou informacoes.
-  goto :erro
+  echo.
+  echo O Concilia nao iniciou. Siga a orientacao acima ou copie a mensagem para solicitar ajuda.
+  pause
+  exit /b 1
 )
-.venv\Scripts\python.exe -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
-if errorlevel 1 goto :erro
-echo.
-echo Quando o servidor iniciar, abra no navegador o endereco mostrado em Running on.
-echo Mantenha esta janela aberta durante o uso. Para encerrar, pressione Ctrl+C.
-.venv\Scripts\python.exe app.py
-if errorlevel 1 goto :erro
 exit /b 0
-
-:erro
-echo Nao foi possivel iniciar. Copie a mensagem de erro para solicitar ajuda.
-pause
-exit /b 1

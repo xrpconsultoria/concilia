@@ -1,3 +1,4 @@
+# Runtime: Python 3.12 de 64 bits. Use iniciar.py para selecionar o Python correto.
 Flask==3.1.2
 Werkzeug==3.1.9
 Jinja2==3.1.6
