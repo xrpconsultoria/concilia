@@ -45,31 +45,43 @@ def _totals(movements, incoming, outgoing, label):
 def read_bb(text):
     account = _one(re.findall(r"Ag[eê]ncia:\s*[\d-]+\s+Conta:\s*([\d.-]+)", text, re.I), "a conta Banco do Brasil")
     movements, current = [], None
+    pending_history = None
     history_column = None
     running = None
     checks, repaired, last_checked = 0, False, 0
+    page, last_date = 1, None
+
+    def fail(message):
+        day = current["date"] if current else last_date
+        location = f"página {page}" + (f", data {day}" if day else "")
+        raise InputError(f"Banco do Brasil — {location}: {message} Nenhum lançamento foi importado. Gere novamente o PDF completo pelo banco ou envie OFX.")
 
     def finish():
-        nonlocal current, running, checks
+        nonlocal current, running, last_date
         if current is None:
             return
-        day = parse_date(current["date"])
+        try:
+            day = parse_date(current["date"])
+        except InputError:
+            fail("a data do movimento está incompleta ou inválida.")
         if current["amount"] is None or not current["history"]:
-            raise InputError("Banco do Brasil: movimento incompleto; confira data, histórico e valor.")
+            fail("o movimento está incompleto; confira data, histórico e valor.")
         history = " — ".join(normalize(part) for part in current["history"])
         amount = current["amount"]
         if history.startswith("SALDO ANTERIOR"):
             if running is not None:
-                raise InputError("Banco do Brasil: saldo anterior repetido.")
+                fail("o saldo anterior está repetido.")
             running = amount
         else:
             if running is None or movements and day < movements[-1].date:
-                raise InputError("Banco do Brasil: saldo anterior ausente ou datas fora de ordem.")
+                fail("o saldo anterior está ausente ou as datas estão fora de ordem.")
             running += amount
             movements.append(Movement(day, history, amount, current["document"]))
+        last_date = current["date"]
         current = None
 
-    for line in text.splitlines():
+    lines = [(number, line) for number, content in enumerate(text.split("\f"), 1) for line in content.splitlines()]
+    for page, line in lines:
         header = re.search(r"Dia\s+Lote\s+Documento\s+Hist[oó]rico\s+Valor", line, re.I)
         if header:
             history_column = re.search(r"Hist[oó]rico", line, re.I).start()
@@ -77,10 +89,25 @@ def read_bb(text):
         if history_column is None or not line.strip():
             continue
         if re.search(r"Total Aplica[çc][õo]es", line, re.I):
+            if pending_history:
+                fail("há um histórico sem a linha de data e valor correspondente.")
             finish()
             history_column = None
             continue
         if re.match(r"\s*(Extrato de Conta|Cliente\s|Ag[eê]ncia:|Lan[çc]amentos\s*$)", line, re.I):
+            continue
+        if re.match(r"\s*Per[ií]odo:", line, re.I) and re.search(r"Ag[eê]ncia:\s*[\d-]+\s+Conta:\s*[\d.-]+\s*$", line, re.I):
+            continue
+        # BB vertically centers date/value beside multiline histories. With
+        # three history lines, the Pix title can appear ABOVE the dated row.
+        # Keep only these explicit operation titles pending; never skip an
+        # arbitrary unrecognized line or attach the title to the previous Pix.
+        title = line[history_column:].strip()
+        if not line[:history_column].strip() and re.fullmatch(r"Pix\s*-\s*(?:Recebido|Enviado|Agendamento)", title, re.I):
+            if pending_history:
+                fail("há dois históricos sem a linha de data e valor correspondente.")
+            finish()
+            pending_history = title
             continue
         # One known BB page break splits the last digit of a year into the next page.
         fragment = re.match(r"^\s*(\d)\s+", line)
@@ -88,10 +115,12 @@ def read_bb(text):
             current["date"] += fragment[1]
             repaired = True
         elif re.match(r"\s*(?:00/00/0000|" + DATE + r")\s+.*(?:Saldo do dia|S A L D O)\s+", line, re.I):
+            if pending_history:
+                fail("há um histórico sem movimento antes do saldo.")
             finish()
             amount = re.search(r"(" + AMOUNT + r")\s*\(([+-])\)\s*$", line)
             if not amount or running != money(amount[1]) * (-1 if amount[2] == "-" else 1):
-                raise InputError("Banco do Brasil: os movimentos não fecham com o saldo diário/final.")
+                fail("os movimentos não fecham com o saldo diário/final.")
             checks += 1
             last_checked = len(movements)
             continue
@@ -99,13 +128,14 @@ def read_bb(text):
             dated = re.match(r"\s*(\d{2}/\d{2}/\d{3,4})\s+", line)
             if dated:
                 finish()
-                current = {"date": dated[1], "history": [], "amount": None, "document": ""}
+                current = {"date": dated[1], "history": [pending_history] if pending_history else [], "amount": None, "document": ""}
+                pending_history = None
             elif current is None:
-                raise InputError("Banco do Brasil: linha não reconhecida na tabela de lançamentos.")
+                fail("há uma linha não reconhecida na tabela de lançamentos.")
         value = re.search(r"(" + AMOUNT + r")\s*\(([+-])\)\s*$", line)
         if value:
             if current["amount"] is not None:
-                raise InputError("Banco do Brasil: dois valores no mesmo movimento.")
+                fail("há dois valores no mesmo movimento.")
             current["amount"] = money(value[1]) * (-1 if value[2] == "-" else 1)
         prefix = line[:history_column].split()
         if len(prefix) >= 2 and prefix[-1].isdigit() and prefix[-2].isdigit():
@@ -113,9 +143,11 @@ def read_bb(text):
         history = line[history_column:value.start() if value else None].strip()
         if history:
             current["history"].append(history)
+    if pending_history:
+        fail("há um histórico sem a linha de data e valor correspondente.")
     finish()
     if not movements or not checks or last_checked != len(movements):
-        raise InputError("Banco do Brasil: movimentos ou saldos de conferência ausentes.")
+        fail("faltam movimentos ou saldos para conferir o extrato completo.")
     warnings = [f"Banco do Brasil: {checks} saldos diários/final conferidos. Datas de efetivação da coluna Dia preservadas.", "Descrições completas do PDF foram preservadas. Textos simplificados ou completados na planilha de aprendizado podem exigir regras por trecho ou revisão na 106."]
     if repaired:
         warnings.append("Banco do Brasil: uma data dividida entre páginas foi recomposta com o dígito impresso na página seguinte.")

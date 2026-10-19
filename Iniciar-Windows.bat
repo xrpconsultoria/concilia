@@ -1,7 +1,7 @@
 @echo off
 setlocal DisableDelayedExpansion
 cd /d "%~dp0"
-echo Concilia v0.5.3 - iniciar
+echo Concilia v0.5.4 - iniciar
 echo Pasta: "%CD%"
 
 rem O bootstrap pode rodar com Python novo; ele seleciona o 3.12 para o aplicativo.

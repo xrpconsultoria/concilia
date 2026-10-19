@@ -14,7 +14,7 @@ import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parent
-VERSION = "0.5.3"
+VERSION = "0.5.4"
 REQUIRED_VERSION = (3, 12)
 IS_WINDOWS = sys.platform == "win32"
 DOWNLOAD_URL = "https://www.python.org/downloads/release/python-31210/"

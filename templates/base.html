@@ -16,10 +16,10 @@
       <a class="nav-link {{ 'active' if request.endpoint in ['home', 'new_reconciliation', 'batch_page'] }}" href="{{ url_for('home') }}"><span aria-hidden="true">▦</span> Conciliações</a>
       <a class="nav-link {{ 'active' if request.endpoint in ['settings', 'setup_account', 'account_page', 'edit_account'] }}" href="{{ url_for('settings') }}"><span aria-hidden="true">⚙</span> Clientes e configurações</a>
     </nav>
-    <div class="sidebar-foot"><span class="status-dot"></span> Fluxo guiado · v0.5.3<br><small>Exportação para Makro System</small></div>
+    <div class="sidebar-foot"><span class="status-dot"></span> Fluxo guiado · v0.5.4<br><small>Exportação para Makro System</small></div>
   </aside>
   <main>
-    <div class="topbar"><span>Conciliação bancária <span class="version">v0.5.3</span></span><span class="pill">Histórico fixo · 52</span></div>
+    <div class="topbar"><span>Conciliação bancária <span class="version">v0.5.4</span></span><span class="pill">Histórico fixo · 52</span></div>
     <div class="content">
       {% for category, message in get_flashed_messages(with_categories=true) %}<div role="status" class="flash {{ category }}">{{ message }}</div>{% endfor %}
       {% block content %}{% endblock %}

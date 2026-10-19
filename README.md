@@ -6,7 +6,7 @@ Aplicativo de desenvolvimento para transformar extratos bancários em lançament
 
 1. Baixe o projeto pelo GitHub em **Code → Download ZIP** e extraia toda a pasta.
 2. Instale **Python 3.12 de 64 bits** pela [página oficial do Python 3.12.10](https://www.python.org/downloads/release/python-31210/): em **Files**, escolha **Windows installer (64-bit)**. Se o instalador mostrar **Add python.exe to PATH**, marque essa opção.
-3. Abra `Iniciar-Windows.bat` dentro da pasta extraída. A janela deve começar com **Concilia v0.5.3 - iniciar** e mostrar a pasta aberta. Na primeira vez, aguarde a instalação das dependências.
+3. Abra `Iniciar-Windows.bat` dentro da pasta extraída. A janela deve começar com **Concilia v0.5.4 - iniciar** e mostrar a pasta aberta. Na primeira vez, aguarde a instalação das dependências.
 4. Quando aparecer **Running on**, copie o endereço mostrado pelo terminal para o navegador. Mantenha a janela aberta durante o uso. Ctrl+C encerra o servidor.
 
 Esta versão usa o pacote de OCR `rapidocr-onnxruntime==1.4.4`, que exige Python anterior ao 3.13. As outras dependências fixadas exigem pelo menos 3.12. Por isso, o aplicativo usa **exatamente Python 3.12 de 64 bits**, com qualquer atualização dessa série. Python 3.13/3.14 pode continuar instalado para outros programas.
@@ -37,7 +37,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.5.3
+## Fluxo guiado · v0.5.4
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -64,8 +64,8 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 1. Encerre o aplicativo com Ctrl+C na janela do servidor.
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
-4. Abra `Iniciar-Windows.bat` diretamente dentro da nova pasta. Um atalho antigo pode continuar abrindo a instalação anterior. Confira **Concilia v0.5.3 - iniciar** e o caminho da pasta na janela. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.5.3** na interface. Se necessário, recarregue a página com Ctrl+F5.
+4. Abra `Iniciar-Windows.bat` diretamente dentro da nova pasta. Um atalho antigo pode continuar abrindo a instalação anterior. Confira **Concilia v0.5.4 - iniciar** e o caminho da pasta na janela. A atualização do banco é automática e preserva os registros existentes.
+5. Confira **v0.5.4** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -78,7 +78,7 @@ Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente 
 | PDF C6 | Modelo com data de lançamento e data contábil, dentro de um mesmo ano; conferência dos totais mensais informados. |
 | PDF Sicredi | Modelo de conta corrente com Documento/Histórico/Débito/Crédito/Saldo; valores lidos pela posição das colunas. Saldos e totais são conferidos; resumos e lançamentos futuros ficam de fora. |
 | PDF Cresol | Modelo com saldos diários, valores com sinal e documento abaixo da descrição. Preserva estornos, confere os saldos e ordena os movimentos por data. |
-| PDF Banco do Brasil | Extrato de Conta Corrente com Dia/Lote/Documento/Histórico/Valor e sinais (+)/(-). Confere saldos, preserva a data de efetivação e recompõe o ano dividido entre páginas quando o dígito está impresso. |
+| PDF Banco do Brasil | Extrato de Conta Corrente com Dia/Lote/Documento/Histórico/Valor e sinais (+)/(-). Aceita títulos Pix acima da linha de data e valor, com histórico em várias linhas. Confere saldos, preserva a data de efetivação e recompõe o ano dividido entre páginas quando o dígito está impresso. |
 | PDF Inter | Modelo com saldo do dia e saldo por transação. Preserva continuações entre páginas e confere os saldos; não usa o saldo atual do cabeçalho como saldo final do período. |
 | PDF Cora | Modelo Transações com favorecido, CPF/CNPJ e valores com sinal. Confere totais e saldos diários; mantém a ordem decrescente do PDF e as descrições da coluna de favorecido/CPF/CNPJ. |
 | PDF Caixa | Extrato por período com documento, histórico/complemento, favorecido, valor e saldo C/D, em ordem decrescente. Confere o saldo de cada linha e exporta em ordem cronológica. O modelo digitalizado também é lido por OCR local. |
@@ -100,6 +100,12 @@ Tipo deve ser S ou A e inativada deve ser sim ou nao. A conta analítica ativa 1
 Descrições do PDF são preservadas, incluindo nomes truncados e caracteres incomuns; o aplicativo não completa nomes. Uma planilha conciliada que tenha corrigido a grafia pode não gerar uma regra exata para o texto original do extrato. Nesses casos, revise a conta 106 ou cadastre uma regra por trecho. O Sicredi pode reunir mais de um mês no mesmo arquivo: use o filtro de datas quando quiser exportar apenas um mês.
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
+
+### Correção do Banco do Brasil na v0.5.4
+
+O leitor reúne o título Pix que aparece acima da linha de data, documento e valor com os complementos do próprio movimento. Esse posicionamento ocorre quando o banco centraliza a data e o valor ao lado de um histórico de três linhas; antes, a leitura podia parar com “linha não reconhecida na tabela de lançamentos” ou anexar o título ao histórico anterior. Históricos isolados, valores ausentes e divergências nos saldos continuam impedindo a importação.
+
+O cabeçalho repetido com período, agência e conta não entra mais no histórico do lançamento anterior à quebra de página. Os erros da tabela agora informam página, data quando disponível e a alternativa de gerar novamente o PDF completo ou enviar OFX. Casos de regressão usam somente dados fictícios.
 
 ### Identificação da instalação na v0.5.3
 
@@ -127,7 +133,7 @@ Corrigida a seleção de Python que permitia criar o ambiente com 3.13 ou mais n
 - Revisão e download aceitam formulários grandes, dentro do limite de 20.000 movimentos. Corrigido o limite de campos que causava erro de “arquivo maior que 16 MB” em conciliações com centenas de linhas. O plano e as regras são preparados uma vez por operação, e a busca de possíveis repetidos é feita uma vez por lote.
 - O atalho para corrigir a conta aparece somente quando o número do extrato diverge do cadastro. Erros de leitura mantêm o arquivo e os campos e apresentam uma orientação correspondente ao problema.
 
-Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.3**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
+Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.4**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
 
 ### Avisos dos novos layouts
 

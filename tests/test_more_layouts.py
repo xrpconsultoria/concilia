@@ -120,6 +120,55 @@ Ouvidoria: 0000
 
 
 class BancoBrasilTests(unittest.TestCase):
+    def test_pix_title_above_date_keeps_each_multiline_history_with_its_movement(self):
+        text = "\n".join([
+            bb_header(), bb_row("31/08/2026", "Saldo Anterior", "100,00 (+)"),
+            bb_row("", "Pix - Recebido"),
+            bb_row("01/09/2026", "01/09 09:00 EMPRESA", "200,00 (+)", "10000", "111"),
+            bb_row("", "FICTICIA"),
+            bb_row("01/09/2026", "Saldo do dia", "300,00 (+)"),
+            bb_row("02/09/2026", "Cobrança", "25,00 (+)", "10000", "222"),
+            bb_row("", "Pix - Recebido"),
+            bb_row("02/09/2026", "02/09 10:00 OUTRA EMPRESA", "100,00 (+)", "10000", "333"),
+            bb_row("", "DEMONSTRATIVA"),
+            bb_row("", "Pix - Enviado"),
+            bb_row("02/09/2026", "02/09 11:00 PESSOA", "50,00 (-)", "10000", "444"),
+            bb_row("", "EXEMPLO"),
+            bb_row("02/09/2026", "Saldo do dia", "375,00 (+)"),
+        ])
+        movements = read_bb(text).movements
+        self.assertEqual([m.cents for m in movements], [20000, 2500, 10000, -5000])
+        self.assertEqual([m.document for m in movements], ["111", "222", "333", "444"])
+        self.assertEqual([m.date for m in movements], [date(2026, 9, 1)] + [date(2026, 9, 2)] * 3)
+        self.assertEqual([m.description for m in movements], [
+            "PIX - RECEBIDO — 01/09 09:00 EMPRESA — FICTICIA",
+            "COBRANÇA",
+            "PIX - RECEBIDO — 02/09 10:00 OUTRA EMPRESA — DEMONSTRATIVA",
+            "PIX - ENVIADO — 02/09 11:00 PESSOA — EXEMPLO",
+        ])
+
+    def test_orphan_title_cannot_be_discarded_or_used_as_a_balance_description(self):
+        prefix = "\n".join([bb_header(), bb_row("31/08/2026", "Saldo Anterior", "100,00 (+)"), bb_row("", "Pix - Recebido")])
+        for suffix in ["", bb_row("01/09/2026", "Saldo do dia", "100,00 (+)"), bb_row("", "Pix - Enviado"),
+                       bb_row("01/09/2026", "01/09 09:00 EMPRESA FICTICIA"), "Total Aplicações Financeiras 0,00"]:
+            with self.subTest(suffix=suffix), self.assertRaises(InputError):
+                read_bb(prefix + "\n" + suffix)
+
+    def test_page_header_period_and_account_do_not_pollute_previous_history(self):
+        expected = read_bb(bb_sample()).movements
+        text = bb_sample().replace("\f", "\f\nExtrato de Conta Corrente\nCliente EMPRESA FICTICIA\nPeríodo: 01 a 31/08/2026  Agência: 0001-0 Conta: 000001-1\n")
+        self.assertEqual(read_bb(text).movements, expected)
+
+    def test_unrecognized_line_reports_page_date_and_recovery_action(self):
+        text = "\n".join([bb_header(), bb_row("31/08/2026", "Saldo Anterior", "100,00 (+)"),
+                          bb_row("01/09/2026", "Cobrança", "200,00 (+)", "10000", "111"),
+                          bb_row("01/09/2026", "Saldo do dia", "300,00 (+)"), "\f", bb_header(),
+                          bb_row("", "OPERAÇÃO NÃO RECONHECIDA", "10,00")])
+        with self.assertRaises(InputError) as error:
+            read_bb(text)
+        for detail in ["página 2", "data 01/09/2026", "não reconhecida", "Nenhum lançamento", "PDF completo", "OFX"]:
+            self.assertIn(detail, str(error.exception))
+
     def test_multiline_document_split_date_and_balances(self):
         result = read_bb(bb_sample())
         self.assertEqual([m.cents for m in result.movements], [20000, -5000])
