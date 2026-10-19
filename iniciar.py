@@ -20,7 +20,7 @@ DOWNLOAD_URL = "https://www.python.org/downloads/release/python-31210/"
 PROBE = (
     "import json,struct,sys; "
     "print(json.dumps({'version':list(sys.version_info[:3]),"
-    "'bits':struct.calcsize('P')*8,'executable':sys.executable}))"
+    "'bits':struct.calcsize('P')*8,'executable':sys.executable},ensure_ascii=True))"
 )
 
 
@@ -42,7 +42,10 @@ class PythonRuntime:
 
 def probe(command):
     try:
-        result = subprocess.run(list(command) + ["-c", PROBE], capture_output=True, text=True, timeout=10)
+        # Windows launchers/older Python may write cp1252 diagnostics even when
+        # this bootstrap defaults to UTF-8. Never decode both pipes implicitly:
+        # Windows reader-thread exceptions would otherwise hide valid runtimes.
+        result = subprocess.run(list(command) + ["-c", PROBE], capture_output=True, timeout=10)
         if result.returncode:
             return None
         info = json.loads(result.stdout)
@@ -58,14 +61,16 @@ def windows_installations():
     import winreg
     for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
         for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
-            try:
-                with winreg.OpenKey(hive, r"Software\Python\PythonCore\3.12\InstallPath", 0, winreg.KEY_READ | view) as key:
-                    try:
-                        yield (winreg.QueryValueEx(key, "ExecutablePath")[0],)
-                    except OSError:
-                        yield (str(Path(winreg.QueryValue(key, None)) / "python.exe"),)
-            except OSError:
-                continue
+            for tag in ("3.12", "3.12-64"):
+                try:
+                    path = "Software\\Python\\PythonCore\\" + tag + "\\InstallPath"
+                    with winreg.OpenKey(hive, path, 0, winreg.KEY_READ | view) as key:
+                        try:
+                            yield (winreg.QueryValueEx(key, "ExecutablePath")[0],)
+                        except OSError:
+                            yield (str(Path(winreg.QueryValue(key, None)) / "python.exe"),)
+                except OSError:
+                    continue
 
 
 def candidates():
@@ -75,9 +80,11 @@ def candidates():
         yield (base,)
     if IS_WINDOWS:
         yield ("py", "-3.12")
+        yield ("py", "-V:3.12")
         yield from windows_installations()
         for variable, suffix in (
             ("LOCALAPPDATA", "Programs/Python/Python312/python.exe"),
+            ("LOCALAPPDATA", "Python/pythoncore-3.12-64/python.exe"),
             ("ProgramFiles", "Python312/python.exe"),
         ):
             if os.environ.get(variable):
@@ -97,11 +104,14 @@ def find_python():
         if runtime and runtime.compatible:
             return runtime
     raise StartupError(
+        "Inicializador aberto com Python " + ".".join(map(str, sys.version_info[:3])) + ".\n"
+        "Nenhum Python 3.12 de 64 bits foi encontrado nesta busca.\n"
         "O Concilia precisa do Python 3.12 de 64 bits para o OCR.\n"
         "Python 3.13, 3.14 ou mais novo nao e compativel com os pacotes desta versao.\n"
         "1. Acesse " + DOWNLOAD_URL + "\n"
         "2. Em Files, escolha Windows installer (64-bit).\n"
         "3. Instale o Python 3.12 e abra Iniciar-Windows.bat novamente.\n"
+        "Se usa o novo gerenciador Python, outra opcao e executar: py install 3.12\n"
         "Voce pode manter outras versoes do Python instaladas. A pasta data sera preservada.\n"
         "No Linux/macOS, instale Python 3.12 de 64 bits e execute o inicializador novamente."
     )

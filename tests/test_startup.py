@@ -3,7 +3,9 @@
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
+import json
 import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -33,7 +35,7 @@ class PythonSelectionTests(unittest.TestCase):
         with patch("iniciar.candidates", return_value=iter([("python",)])), patch("iniciar.probe", return_value=runtime((3, 13, 0))):
             with self.assertRaises(iniciar.StartupError) as error:
                 iniciar.find_python()
-        for text in ["3.12", "64 bits", "Windows installer (64-bit)", "outras versoes", "data"]:
+        for text in ["Inicializador aberto com Python", "3.12", "64 bits", "Windows installer (64-bit)", "outras versoes", "data"]:
             self.assertIn(text, str(error.exception))
 
     def test_probe_handles_missing_interpreter_timeout_and_non_python_command(self):
@@ -50,13 +52,47 @@ class PythonSelectionTests(unittest.TestCase):
         self.assertIn(("py", "-3.12"), candidates)
         self.assertIn(("registry-python",), candidates)
         self.assertIn((str(Path('/local/Programs/Python/Python312/python.exe')),), candidates)
+        self.assertIn((str(Path('/local/Python/pythoncore-3.12-64/python.exe')),), candidates)
+        self.assertIn(("py", "-V:3.12"), candidates)
+
+    def test_compatible_interpreter_is_detected_despite_cp1252_stderr(self):
+        # Real child process: reproduces the UTF-8/Windows-code-page mismatch.
+        executable = "C:/Users/Usuário Exemplo/Python/python.exe"
+        info = json.dumps(dict(version=[3, 12, 10], bits=64, executable=executable))
+        code = "import sys;sys.stdout.write(" + repr(info) + ");sys.stderr.buffer.write(b'instala\\xe7\\xe3o legada')"
+        detected = iniciar.probe((sys.executable, "-c", code))
+        self.assertIsNotNone(detected)
+        self.assertTrue(detected.compatible)
+        self.assertEqual(detected.executable, executable)
+
+    def test_legacy_error_output_and_invalid_json_are_safe_binary_data(self):
+        for result in [Mock(returncode=7, stdout=b"", stderr=b"n\xe3o encontrado"), Mock(returncode=0, stdout=b"invalid-\xe3", stderr=b"")]:
+            with self.subTest(result=result), patch("iniciar.subprocess.run", return_value=result) as run:
+                self.assertIsNone(iniciar.probe(("python",)))
+                self.assertFalse(run.call_args.kwargs.get("text", False))
+
+    def test_runtime_protocol_escapes_non_ascii_executable_paths(self):
+        result = subprocess.run([sys.executable, "-c", iniciar.PROBE], capture_output=True, check=True)
+        result.stdout.decode("ascii")
+        self.assertEqual(json.loads(result.stdout)["version"][:2], list(sys.version_info[:2]))
 
     def test_registry_executable_path_is_read_without_requiring_path(self):
         key = Mock(); key.__enter__ = Mock(return_value=key);key.__exit__ = Mock(return_value=False)
         registry = types.SimpleNamespace(HKEY_CURRENT_USER=1,HKEY_LOCAL_MACHINE=2,KEY_WOW64_64KEY=256,KEY_WOW64_32KEY=512,KEY_READ=1,OpenKey=Mock(return_value=key),QueryValueEx=Mock(return_value=("python312-registry.exe", 1)))
         with patch("iniciar.IS_WINDOWS", True), patch.dict("sys.modules", {"winreg": registry}):
             paths = list(iniciar.windows_installations())
-        self.assertEqual(paths, [("python312-registry.exe",)] * 4)
+        self.assertEqual(paths, [("python312-registry.exe",)] * 8)
+
+    def test_install_manager_registry_tag_can_be_the_only_registered_runtime(self):
+        key = Mock();key.__enter__ = Mock(return_value=key);key.__exit__ = Mock(return_value=False)
+        def open_key(hive, path, reserved, access):
+            if r"\3.12-64\InstallPath" in path:
+                return key
+            raise FileNotFoundError(path)
+        registry = types.SimpleNamespace(HKEY_CURRENT_USER=1,HKEY_LOCAL_MACHINE=2,KEY_WOW64_64KEY=256,KEY_WOW64_32KEY=512,KEY_READ=1,OpenKey=Mock(side_effect=open_key),QueryValueEx=Mock(return_value=("managed-python312.exe", 1)))
+        with patch("iniciar.IS_WINDOWS", True), patch.dict("sys.modules", {"winreg": registry}):
+            paths = list(iniciar.windows_installations())
+        self.assertEqual(paths, [("managed-python312.exe",)] * 4)
 
 
 class EnvironmentRepairTests(unittest.TestCase):

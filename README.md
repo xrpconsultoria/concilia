@@ -37,7 +37,7 @@ O aplicativo escuta somente em loopback, porta 5000; a variável `PORT` permite 
 
 Esta versão usa o servidor de desenvolvimento do Flask e não inclui autenticação ou permissões por usuário. Precisa de preparação adicional antes de uma implantação para uso público.
 
-## Fluxo guiado · v0.5.1
+## Fluxo guiado · v0.5.2
 
 A rotina da equipe fica em **Nova conciliação**:
 
@@ -65,7 +65,7 @@ Regras exatas têm prioridade sobre regras por trecho; conflitos entre códigos 
 2. Baixe e extraia a versão nova em uma pasta diferente.
 3. Copie a pasta **data** da instalação anterior para a nova, preservando a original como backup. Ela contém cadastros, regras, conciliações e seu plano contábil.
 4. Abra o inicializador da nova pasta. A atualização do banco é automática e preserva os registros existentes.
-5. Confira **v0.5.1** na interface. Se necessário, recarregue a página com Ctrl+F5.
+5. Confira **v0.5.2** na interface. Se necessário, recarregue a página com Ctrl+F5.
 
 Não copie a pasta `.venv` entre instalações: o inicializador cria o ambiente da nova pasta. O banco local tem uma migração adicional para registrar quando um Excel foi gerado; isso não indica importação efetiva no Makro.
 
@@ -101,6 +101,14 @@ Descrições do PDF são preservadas, incluindo nomes truncados e caracteres inc
 
 Um arquivo idêntico com o mesmo período não pode gerar outro lote da mesma conta. Em arquivos distintos, movimentos com a mesma data, valor e descrição em lotes anteriores são possíveis repetidos: permanecem visíveis e começam desmarcados. A conferência humana distingue sobreposições de movimentos legítimos iguais. Repetições dentro de um mesmo arquivo são preservadas.
 
+### Correção de inicialização no Windows da v0.5.2
+
+Corrigida a leitura das respostas de outros interpretadores/launchers quando o Python novo usa UTF-8 e algum processo filho escreve mensagens em uma página de código antiga do Windows (como cp1252). Isso podia gerar `UnicodeDecodeError` em uma thread e fazer um Python válido passar despercebido, especialmente em caminhos com acentos. A busca agora captura bytes e usa um protocolo JSON ASCII para os dados do interpretador; nomes de pastas acentuados são preservados.
+
+A busca também considera `py -V:3.12`, o registro com a identificação `3.12-64` e o diretório `Python/pythoncore-3.12-64` usado pelo gerenciador novo. Somente um Python 3.12 de 64 bits confirmado é usado para instalar e executar o aplicativo.
+
+Se só houver Python 3.15 (ou outra versão mais nova), instale o 3.12 de 64 bits pelo link do início deste documento. Com o novo **Python Install Manager**, também é possível abrir o Prompt de Comando e executar `py install 3.12`; depois abra o inicializador do Concilia novamente. Não é necessário desinstalar as outras versões.
+
 ### Correção de instalação da v0.5.1
 
 Corrigida a seleção de Python que permitia criar o ambiente com 3.13 ou mais novo e depois falhava ao instalar o OCR. Os dois inicializadores usam o mesmo bootstrap, que seleciona Python 3.12 de 64 bits, recupera ambientes incompatíveis com backup e verifica as bibliotecas antes de iniciar. Leitores bancários, regras, banco de dados e exportação Makro permanecem os mesmos da v0.5.
@@ -113,7 +121,7 @@ Corrigida a seleção de Python que permitia criar o ambiente com 3.13 ou mais n
 - Revisão e download aceitam formulários grandes, dentro do limite de 20.000 movimentos. Corrigido o limite de campos que causava erro de “arquivo maior que 16 MB” em conciliações com centenas de linhas. O plano e as regras são preparados uma vez por operação, e a busca de possíveis repetidos é feita uma vez por lote.
 - O atalho para corrigir a conta aparece somente quando o número do extrato diverge do cadastro. Erros de leitura mantêm o arquivo e os campos e apresentam uma orientação correspondente ao problema.
 
-Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.1**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
+Para testar a atualização, preserve `data/`, abra o inicializador da nova pasta e confira **v0.5.2**. Envie a planilha conciliada no aprendizado da conta e depois o PDF correspondente. Lotes antigos mantêm a revisão feita; a atualização não reclassifica dados já salvos. Reenviar um arquivo/período que já existe continua abrindo o lote anterior.
 
 ### Avisos dos novos layouts
 
